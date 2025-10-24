@@ -1,0 +1,18 @@
+{
+  "TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN_HERE",
+  "TELEGRAM_ENABLED": true,
+  "TELEGRAM_CHAT_ID": "",
+  "WATCHLIST": [
+    "AAPL",
+    "TSLA",
+    "NVDA",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "AMD",
+    "NFLX",
+    "CRM"
+  ]
+}
+
