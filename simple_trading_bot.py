@@ -305,6 +305,30 @@ async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(response, parse_mode='Markdown')
 
+async def david_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /david command - Small-cap opportunities"""
+    if not DAVID_AVAILABLE:
+        await update.message.reply_text("❌ David strategy not available. Install required packages.")
+        return
+    
+    await update.message.reply_text("🎯 Scanning for small-cap opportunities...\n⏱️ This may take 30-60 seconds...")
+    
+    try:
+        # Run the David strategy scan
+        report = await scan_david_opportunities()
+        
+        # Split report if too long (Telegram limit is 4096 chars)
+        if len(report) > 4000:
+            parts = [report[i:i+3900] for i in range(0, len(report), 3900)]
+            for i, part in enumerate(parts, 1):
+                await update.message.reply_text(f"📊 Part {i}/{len(parts)}:\n\n{part}")
+        else:
+            await update.message.reply_text(report)
+            
+    except Exception as e:
+        logger.error(f"David strategy error: {e}")
+        await update.message.reply_text(f"❌ Error running David strategy: {str(e)}")
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command"""
     help_text = """
@@ -314,7 +338,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • /start - Show main menu
 • /analyze TICKER - Analyze any stock
 • /watchlist - View your watchlist
-• /scan - Scan watchlist for signals
+• /scan - Scan watchlist for signals"""
+    
+    if DAVID_AVAILABLE:
+        help_text += "\n• /david - Find small-cap opportunities (David vs Goliath)"
+    
+    help_text += """
 • /help - Show this help
 
 **How it works:**
@@ -347,6 +376,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await watchlist_command(update, context)
     elif query.data == 'scan':
         await scan_command(update, context)
+    elif query.data == 'david':
+        if DAVID_AVAILABLE:
+            # Create a fake update for david_command
+            await query.message.reply_text("🎯 Starting David vs Goliath scan...")
+            await david_command(update, context)
+        else:
+            await query.message.reply_text("❌ David strategy not available")
     elif query.data == 'help':
         await help_command(update, context)
 
@@ -402,6 +438,12 @@ def main():
         application.add_handler(CommandHandler("watchlist", watchlist_command))
         application.add_handler(CommandHandler("scan", scan_command))
         application.add_handler(CommandHandler("help", help_command))
+        
+        # Add David strategy if available
+        if DAVID_AVAILABLE:
+            application.add_handler(CommandHandler("david", david_command))
+            print("✅ David vs Goliath strategy loaded")
+        
         application.add_handler(CallbackQueryHandler(button_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
         
