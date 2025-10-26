@@ -24,13 +24,20 @@ from telegram.ext import (
     ContextTypes
 )
 
-# David strategy import
+# Strategy imports
 try:
     from david_portfolio_strategy import scan_david_opportunities
     DAVID_AVAILABLE = True
 except ImportError:
     DAVID_AVAILABLE = False
     logger.warning("David strategy not available")
+
+try:
+    from sentiment_intelligence import get_sentiment_signal
+    SENTIMENT_AVAILABLE = True
+except ImportError:
+    SENTIMENT_AVAILABLE = False
+    logger.warning("Sentiment intelligence not available")
 
 # Setup logging
 logging.basicConfig(
@@ -234,6 +241,14 @@ async def analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Could not analyze {ticker}. Check the ticker and try again.")
         return
     
+    # Get sentiment data if available
+    sentiment_data = None
+    if SENTIMENT_AVAILABLE:
+        try:
+            sentiment_data = get_sentiment_signal(ticker, config)
+        except Exception as e:
+            logger.warning(f"Sentiment analysis failed: {e}")
+    
     # Format the response
     response = f"""
 📊 **{result['ticker']} Analysis**
@@ -247,13 +262,27 @@ async def analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • MACD: {result['macd']:.2f}
 • Signal: {result['macd_signal']:.2f}
 
-**Signal:** {result['signal']} (Score: {result['signal_score']})
-
-**Reasoning:**
+**Technical Signal:** {result['signal']} (Score: {result['signal_score']})
 """
     
+    # Add sentiment if available
+    if sentiment_data:
+        sentiment_emoji = "🟢" if sentiment_data.sentiment_score > 0.2 else "🔴" if sentiment_data.sentiment_score < -0.2 else "⚪"
+        response += f"""
+**Social Sentiment:** {sentiment_emoji}
+• Score: {sentiment_data.sentiment_score:+.1%}
+• Mentions: {sentiment_data.mention_count} (24h)
+• Velocity: {sentiment_data.velocity_score:.0%}
+"""
+        if sentiment_data.trending_rank:
+            response += f"• Trending: #{sentiment_data.trending_rank}\n"
+    
+    response += "\n**Technical Reasoning:**\n"
     for reason in result['reasons']:
         response += f"• {reason}\n"
+    
+    if sentiment_data:
+        response += f"\n**Social Reasoning:**\n{sentiment_data.reasoning}\n"
     
     response += f"\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     
@@ -444,12 +473,31 @@ def main():
             application.add_handler(CommandHandler("david", david_command))
             print("✅ David vs Goliath strategy loaded")
         
+        # Print sentiment status
+        if SENTIMENT_AVAILABLE:
+            print("✅ Sentiment Intelligence loaded")
+        
         application.add_handler(CallbackQueryHandler(button_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
         
         print("✅ Handlers registered")
-        print("\n🚀 Bot is running!")
-        print("📱 Open Telegram and send /start to your bot")
+        
+        # Show edge sources
+        edge_count = 1  # Technical always available
+        if DAVID_AVAILABLE:
+            edge_count += 1
+        if SENTIMENT_AVAILABLE:
+            edge_count += 1
+        
+        print(f"\n🚀 Bot is running with {edge_count} edge sources!")
+        print("📊 Edge Sources:")
+        print("   • Technical Analysis (RSI, MACD, MAs)")
+        if DAVID_AVAILABLE:
+            print("   • David vs Goliath (Small-cap opportunities)")
+        if SENTIMENT_AVAILABLE:
+            print("   • Sentiment Intelligence (Reddit, social media)")
+        
+        print("\n📱 Open Telegram and send /start to your bot")
         print("⏹️  Press Ctrl+C to stop\n")
         
         # Start polling
