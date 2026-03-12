@@ -13,5 +13,9 @@
     ],
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
+  },
+  "variables": {
+    "TELEGRAM_BOT_TOKEN": "8243624386:AAEjeDKQg4k3XIX2lM_3qkkpcr9HDCQWJw8",
+    "TELEGRAM_CHAT_ID": "6104130187"
   }
 }
