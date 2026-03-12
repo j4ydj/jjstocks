@@ -4,13 +4,11 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "echo 'Service ready - runs on schedule only' && sleep infinity",
     "cron": [
       {
         "command": "python cloud_run.py",
         "schedule": "0 9,12 * * 1-5"
       }
-    ],
-    "restartPolicyType": "NEVER"
+    ]
   }
 }
