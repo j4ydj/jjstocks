@@ -92,10 +92,13 @@ def run_scan():
                         'direction': s.direction,
                         'confidence': s.confidence,
                         'sources': s.sources,
-                        'catalyst': s.catalyst
+                        'catalyst': s.catalyst,
+                        'price': s.price,
+                        'signal_date': s.signal_date,
+                        'scan_time': s.scan_time
                     }
                     bot.send_signal_alert(signal_dict)
-            
+
             # High confidence avoids
             high_avoid = [s for s in avoids if s.confidence == "HIGH"][:3]
             if high_avoid:
@@ -107,7 +110,10 @@ def run_scan():
                         'direction': s.direction,
                         'confidence': s.confidence,
                         'sources': s.sources,
-                        'catalyst': s.catalyst
+                        'catalyst': s.catalyst,
+                        'price': s.price,
+                        'signal_date': s.signal_date,
+                        'scan_time': s.scan_time
                     }
                     bot.send_signal_alert(signal_dict)
             

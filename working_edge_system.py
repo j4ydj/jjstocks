@@ -34,6 +34,9 @@ class Signal:
     sources: List[str]
     catalyst: str
     timestamp: str
+    price: Optional[float] = None
+    signal_date: Optional[str] = None
+    scan_time: Optional[str] = None
 
 class WorkingEdgeSystem:
     """
@@ -78,10 +81,47 @@ class WorkingEdgeSystem:
         except ImportError:
             logger.warning("Wikipedia module not available")
     
+    def _get_price(self, ticker: str) -> Optional[float]:
+        """Fetch current stock price using yfinance."""
+        try:
+            import yfinance as yf
+            stock = yf.Ticker(ticker)
+
+            # Try fast info first (cheaper API call)
+            try:
+                fast_info = stock.fast_info
+                price = fast_info.get('lastPrice') or fast_info.get('regularMarketPrice')
+                if price:
+                    return price
+            except:
+                pass
+
+            # Fallback to info dict
+            try:
+                info = stock.info
+                price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose')
+                if price:
+                    return price
+            except:
+                pass
+
+            # Last resort: get last close from history
+            try:
+                hist = stock.history(period="1d", interval="1d")
+                if not hist.empty:
+                    return float(hist['Close'].iloc[-1])
+            except:
+                pass
+
+            return None
+        except Exception as e:
+            logger.debug(f"Could not fetch price for {ticker}: {e}")
+            return None
+
     def score_ticker(self, ticker: str) -> Optional[Signal]:
         """
         Score a ticker using all available edge sources.
-        
+
         Scoring:
         +4: Strong earnings beat (>25% surprise)
         +3: Moderate beat (15-25%) with PM contrarian or retail surge
@@ -93,6 +133,13 @@ class WorkingEdgeSystem:
         score = 0
         sources = []
         catalyst = []
+
+        # Get current price and timestamp
+        current_price = self._get_price(ticker)
+        now = datetime.now()
+        timestamp_str = now.isoformat()
+        date_str = now.strftime('%Y-%m-%d')
+        time_str = now.strftime('%H:%M:%S')
         
         # 1. Check SEC risk first (filter)
         if 'sec' in self.modules:
@@ -106,7 +153,10 @@ class WorkingEdgeSystem:
                         confidence="HIGH",
                         sources=["SEC"],
                         catalyst=f"Risk in {form}: {risk_count} phrases",
-                        timestamp=datetime.now().isoformat()
+                        timestamp=timestamp_str,
+                        price=current_price,
+                        signal_date=date_str,
+                        scan_time=time_str
                     )
             except Exception as e:
                 logger.debug(f"SEC error for {ticker}: {e}")
@@ -204,10 +254,10 @@ class WorkingEdgeSystem:
         else:
             direction = "NEUTRAL"
             confidence = "LOW"
-        
+
         if not sources:
             return None
-        
+
         return Signal(
             ticker=ticker,
             score=score,
@@ -215,7 +265,10 @@ class WorkingEdgeSystem:
             confidence=confidence,
             sources=sources,
             catalyst="; ".join(catalyst) if catalyst else "Multi-factor",
-            timestamp=datetime.now().isoformat()
+            timestamp=timestamp_str,
+            price=current_price,
+            signal_date=date_str,
+            scan_time=time_str
         )
     
     def scan(self, tickers: List[str], min_score: int = 2) -> List[Signal]:

@@ -73,21 +73,33 @@ class TelegramBot:
             "AVOID": "⚠️",
             "NEUTRAL": "⚪"
         }.get(signal.get("direction", "NEUTRAL"), "📊")
-        
+
         confidence = signal.get("confidence", "LOW")
         conf_emoji = {"HIGH": "🔥", "MEDIUM": "⚡", "LOW": "💤"}.get(confidence, "💤")
-        
-        text = f"""{emoji} <b>{signal['ticker']}</b> | Score: {signal['score']:+d}
 
-Direction: {signal['direction']}
-Confidence: {confidence} {conf_emoji}
-Sources: {', '.join(signal.get('sources', []))}
+        # Get price and timestamp info
+        price = signal.get('price', 'N/A')
+        if isinstance(price, (int, float)):
+            price_str = f"${price:.2f}"
+        else:
+            price_str = str(price)
 
-Catalyst:
+        scan_time = signal.get('scan_time', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        signal_date = signal.get('signal_date', datetime.now().strftime('%Y-%m-%d'))
+
+        text = f"""{emoji} <b>{signal['ticker']}</b> | Score: {signal['score']:+d} | {price_str}
+
+📅 Date: {signal_date}
+⏰ Time: {scan_time}
+📈 Direction: {signal['direction']}
+🎯 Confidence: {confidence} {conf_emoji}
+📊 Sources: {', '.join(signal.get('sources', []))}
+
+<b>Catalyst:</b>
 {signal.get('catalyst', 'N/A')}
 
-<i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"""
-        
+<i>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"""
+
         return self.send_message(text)
     
     def send_daily_summary(self, signals: List[Dict], universe_size: int):

@@ -76,7 +76,7 @@ class SentimentIntelligence:
         # Initialize Reddit API if credentials provided
         self.reddit_available = bool(self.reddit_client_id and self.reddit_client_secret)
         if not self.reddit_available:
-            logger.warning("Reddit API not configured - using fallback sentiment")
+            logger.debug("Reddit API not configured - using fallback sentiment")
     
     def analyze(self, ticker: str) -> Optional[SentimentSignal]:
         """
@@ -421,20 +421,24 @@ class SentimentIntelligence:
         except:
             return False
 
-# Simple interface for integration
+# Module-level cache to avoid recreating analyzer
+_analyzer_cache = None
+
 def get_sentiment_signal(ticker: str, config: Dict = None) -> Optional[SentimentSignal]:
     """
     Get sentiment signal for a ticker
-    
+
     Args:
         ticker: Stock ticker symbol
         config: Configuration dict
-        
+
     Returns:
         SentimentSignal or None if analysis fails
     """
-    analyzer = SentimentIntelligence(config)
-    return analyzer.analyze(ticker)
+    global _analyzer_cache
+    if _analyzer_cache is None:
+        _analyzer_cache = SentimentIntelligence(config)
+    return _analyzer_cache.analyze(ticker)
 
 if __name__ == "__main__":
     # Test the module
