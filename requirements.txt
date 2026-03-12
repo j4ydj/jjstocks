@@ -1,20 +1,4 @@
-# Trading Bot Cloud Requirements
-# ================================
-
-# Data fetching
 yfinance>=0.2.28
-requests>=2.31.0
-
-# Data processing
 pandas>=2.0.0
 numpy>=1.24.0
-
-# Sentiment / Alternative data
-pytrends>=4.9.0
-
-# Optional (for advanced features)
-# lxml>=4.9.0  # For SEC filing parsing
-# beautifulsoup4>=4.12.0  # For web scraping
-
-# Note: These are minimal requirements for cloud deployment
-# Local development may have additional dependencies
+requests>=2.31.0

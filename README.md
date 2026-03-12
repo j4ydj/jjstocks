@@ -1,61 +1,40 @@
-# Trading Bot
+# Edge System
 
-Cloud-deployed trading signal generator with Telegram alerts.
+Multi-factor trading signal generator. Only outputs actionable trades when 3+ independent signals confirm.
 
-## Quick Start
+## How It Works
 
-```bash
-# Deploy to Railway (cloud)
-1. Push to GitHub
-2. Connect to Railway
-3. Bot runs 24/7 automatically
-```
+5 signal layers, all free data:
 
-## Core Files
+| Signal | Source | What It Detects |
+|--------|--------|----------------|
+| TREND | yfinance | Price vs 20/50 MA |
+| MOMENTUM | yfinance | Relative strength vs SPY |
+| VOLUME | yfinance | Unusual accumulation/distribution |
+| EARNINGS | yfinance | Post-earnings surprise drift |
+| ATTENTION | Wikipedia API | Pageview anomalies |
 
-| File | Purpose |
-|------|---------|
-| `cloud_run.py` | Cloud entry point (Railway/AWS/GCP) |
-| `working_edge_system.py` | Main signal generation |
-| `telegram_alerts.py` | Telegram integration |
-| `railway.json` | Railway configuration |
-| `requirements.txt` | Dependencies |
+Plus SEC filing risk filter (hard reject on going concern / material weakness).
 
-## Data Sources
+**Minimum 3 of 5 signals must agree on direction.** No trade is generated otherwise.
 
-- `prediction_markets.py` - Polymarket odds
-- `retail_sentiment_edge.py` - Wikipedia + Reddit + Google Trends
-- `wikipedia_views.py` - Wikipedia traffic
-- `sec_filing_risk.py` - SEC filing analysis
-- `sentiment_intelligence.py` - Reddit sentiment
-- `google_trends.py` - Google Trends
+## Output
 
-## Analysis
-
-- `earnings_drift.py` - Earnings surprise detection
-- `backtest.py` - Strategy backtesting
-- `run_winning_strategy.py` - Earnings strategy runner
-
-## Utilities
-
-- `telegram_bot_server.py` - Telegram bot server
-- `market_wide_scanner.py` - Multi-ticker scanner
-- `auto_runner.py` - Local automation
-- `fast_scan.py` - Quick scan utility
-- `setup_telegram.py` - Telegram setup helper
-- `trading_bot.sh` - CLI control script
-
-## Environment Variables
-
-```bash
-TELEGRAM_BOT_TOKEN=your_token
-TELEGRAM_CHAT_ID=your_chat_id
-```
+Every trade includes: entry, stop loss, target, risk/reward, position size, exit date.
 
 ## Deployment
 
-See `DEPLOY_TO_RAILWAY.md` for full instructions.
+Runs on Railway (free tier, serverless cron). Sends alerts to Telegram.
 
-## License
+## Files
 
-Private
+| File | Purpose |
+|------|---------|
+| `working_edge_system.py` | Core signal engine |
+| `cloud_run.py` | Cloud entry point |
+| `telegram_alerts.py` | Telegram alerts |
+| `sec_filing_risk.py` | SEC EDGAR risk filter |
+| `wikipedia_views.py` | Wikipedia attention tracking |
+| `earnings_drift.py` | Earnings surprise detection |
+| `railway.json` | Railway config |
+| `requirements.txt` | Dependencies |
