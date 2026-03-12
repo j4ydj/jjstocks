@@ -1,40 +1,33 @@
 # 📊 Current System Status
 
-**Generated:** October 24, 2025  
-**Status:** Clean Foundation + David Strategy  
-**Next Phase:** Add Revolutionary Features (Sustainably)
+**Updated:** March 2026  
+**Status:** Foundation + David + Sentiment + Momentum + Insider + Alternative Data (Phase 3 done)  
+**Next Phase:** Phase 5 Satellite Intelligence (Phase 4 Blockchain/crypto deferred)
 
 ---
 
 ## 🎯 What We Have Right Now
 
-### Core Files (4 Python files, 1,385 lines total)
+### Core Files (Python)
 
 ```
-simple_trading_bot.py          466 lines  ← Main bot with Telegram interface
-david_portfolio_strategy.py    585 lines  ← Small-cap opportunity scanner  
-test_simple_bot.py             70 lines   ← Testing suite
-stop_bot.sh                    Simple     ← Utility script
+simple_trading_bot.py          ← Main bot (Telegram, all commands)
+david_portfolio_strategy.py    ← Small-cap scanner
+sentiment_intelligence.py     ← Reddit/social (Phase 1)
+momentum_intelligence.py       ← Market Cipher–style
+insider_intelligence.py        ← SEC EDGAR, Form 4 (Phase 2)
+alternative_data.py            ← Google Trends, GitHub (Phase 3)
+trade_tracker.py               ← Trade log & performance
+backtest.py                    ← Backtest technical signals vs market
+test_simple_bot.py             ← Smoke tests
+start_simple.sh / check_bot.sh / stop_bot.sh
 ```
 
 ### Configuration & Setup
 ```
-simple_requirements.txt        7 packages ← Minimal dependencies
-trading_config.json           272 lines   ← Your config (already set up)
-simple_config.json            Template    ← Fresh start template
-start_simple.sh               Startup     ← One-command launch
-```
-
-### Documentation (7 guides)
-```
-START_HERE.md                 ← Quick overview
-README_SIMPLE.md              ← Complete docs
-SIMPLE_SETUP_GUIDE.md         ← Setup instructions
-MIGRATION_TO_SIMPLE.md        ← Why we simplified
-SYSTEM_COMPARISON.md          ← Old vs new analysis
-QUICK_REFERENCE.md            ← Command reference
-FILE_GUIDE.txt                ← File navigation
-REBUILD_STRATEGY.md           ← This is YOUR roadmap forward! 🚀
+simple_requirements.txt        ← Dependencies
+simple_config.json             ← Template (INSIDER_ENABLED, SEC_USER_AGENT)
+trading_config.json            ← Your config
 ```
 
 ---
@@ -46,7 +39,7 @@ REBUILD_STRATEGY.md           ← This is YOUR roadmap forward! 🚀
 │                    TELEGRAM INTERFACE                        │
 │                  (simple_trading_bot.py)                     │
 │                                                              │
-│  Commands: /start /analyze /scan /watchlist /david /help   │
+│  /start /analyze /scan /watchlist /david /trades /insider /altdata /help  │
 └──────────────────┬──────────────────────────────────────────┘
                    │
        ┌───────────┴───────────┐
@@ -72,10 +65,9 @@ REBUILD_STRATEGY.md           ← This is YOUR roadmap forward! 🚀
 ```
 
 **Current State:** 
-- ✅ 2 analysis modules (technical + David)
-- ✅ Clean, modular architecture
-- ✅ Ready for expansion
-- ✅ Everything works reliably
+- ✅ Multiple edge modules (technical + David + sentiment + momentum + insider + alternative data)
+- ✅ Optional modules; bot runs if any module is missing
+- ✅ Config: TELEGRAM_*, WATCHLIST, SENTIMENT_ENABLED, MOMENTUM_ENABLED, INSIDER_ENABLED, SEC_USER_AGENT, ALTERNATIVE_DATA_ENABLED
 
 ---
 

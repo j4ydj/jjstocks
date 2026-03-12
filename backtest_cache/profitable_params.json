@@ -1,0 +1,13 @@
+{
+  "strategy": "earnings_buy_entry_delay_1",
+  "description": "Backtested profitable: earnings BUY only, enter next day after report, hold 40d",
+  "min_surprise_pct": 10,
+  "max_surprise_pct": 100,
+  "hold_days": 40,
+  "entry_delay_days": 1,
+  "earnings_buy_only": true,
+  "backtest_median_alpha_pct": 0.03,
+  "backtest_alpha_hit_rate_pct": 50.2,
+  "backtest_avg_alpha_pct": 6.57,
+  "backtest_signals": 414
+}

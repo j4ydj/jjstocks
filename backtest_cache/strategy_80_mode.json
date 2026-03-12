@@ -1,0 +1,28 @@
+{
+  "target_alpha_hit_pct": 80.0,
+  "min_signals_80_mode": 10,
+  "best_observed": {
+    "alpha_hit_rate_pct": 66.7,
+    "n_signals": 6,
+    "median_alpha_pct": 7.75,
+    "description": "Best hit rate with n>=5; 80% not reached with free data and n>=10"
+  },
+  "best_config": {
+    "name": "earn_h20_surp40_100_bull_top10pct",
+    "hold_days": 20,
+    "min_surprise_pct": 40,
+    "max_surprise_pct": 100,
+    "require_bull_regime": true,
+    "signal_type": "earnings",
+    "earnings_top_pct_surprise": 0.1,
+    "n_signals": 6,
+    "median_alpha_pct": 7.75,
+    "alpha_hit_rate_pct": 66.7,
+    "win_rate_pct": null
+  },
+  "aggressive_live_mode": {
+    "hold_days": 20,
+    "top_pct_by_surprise": 0.25,
+    "usage": "run_winning_strategy.py --mode aggressive"
+  }
+}

@@ -13,6 +13,9 @@
     "AMD",
     "NFLX",
     "CRM"
-  ]
+  ],
+  "INSIDER_ENABLED": true,
+  "SEC_USER_AGENT": "YourBot/1.0 (YourName; your@email.com)",
+  "ALTERNATIVE_DATA_ENABLED": true
 }
 

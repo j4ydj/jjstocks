@@ -1,0 +1,83 @@
+{
+  "criteria": {
+    "min_median_alpha_pct": 0.5,
+    "min_alpha_hit_rate_pct": 52.0,
+    "min_win_rate_pct": 52.0,
+    "min_signals": 30
+  },
+  "universe_size": 101,
+  "strategies": [
+    {
+      "name": "combo_h20_surp40_100",
+      "hold_days": 20,
+      "signal_type": "combo",
+      "min_surprise_pct": 40.0,
+      "max_surprise_pct": 100.0,
+      "rsi_min": null,
+      "require_bull_regime": false,
+      "n_signals": 32,
+      "median_alpha_pct": 3.401,
+      "mean_alpha_pct": 2.449,
+      "alpha_hit_rate_pct": 59.38,
+      "win_rate_pct": 56.25,
+      "first_half_median_alpha": -4.446,
+      "second_half_median_alpha": 6.439,
+      "oos_median_alpha": 8.033,
+      "oos_n": 11
+    },
+    {
+      "name": "combo_h30_surp40_100",
+      "hold_days": 30,
+      "signal_type": "combo",
+      "min_surprise_pct": 40.0,
+      "max_surprise_pct": 100.0,
+      "rsi_min": null,
+      "require_bull_regime": false,
+      "n_signals": 31,
+      "median_alpha_pct": 1.86,
+      "mean_alpha_pct": 5.291,
+      "alpha_hit_rate_pct": 58.06,
+      "win_rate_pct": 58.06,
+      "first_half_median_alpha": -0.789,
+      "second_half_median_alpha": 3.61,
+      "oos_median_alpha": 13.847,
+      "oos_n": 10
+    },
+    {
+      "name": "earn_h20_surp40_100_bullFalse",
+      "hold_days": 20,
+      "signal_type": "earnings",
+      "min_surprise_pct": 40.0,
+      "max_surprise_pct": 100.0,
+      "rsi_min": null,
+      "require_bull_regime": false,
+      "n_signals": 98,
+      "median_alpha_pct": 1.523,
+      "mean_alpha_pct": 1.957,
+      "alpha_hit_rate_pct": 54.08,
+      "win_rate_pct": 53.06,
+      "first_half_median_alpha": -2.403,
+      "second_half_median_alpha": 4.304,
+      "oos_median_alpha": 5.042,
+      "oos_n": 26
+    },
+    {
+      "name": "rsi_h15_rsi18_bullTrue",
+      "hold_days": 15,
+      "signal_type": "technical",
+      "min_surprise_pct": null,
+      "max_surprise_pct": null,
+      "rsi_min": 18,
+      "require_bull_regime": true,
+      "n_signals": 296,
+      "median_alpha_pct": 0.622,
+      "mean_alpha_pct": 1.259,
+      "alpha_hit_rate_pct": 52.7,
+      "win_rate_pct": 55.41,
+      "first_half_median_alpha": 0.18,
+      "second_half_median_alpha": 0.822,
+      "oos_median_alpha": 3.703,
+      "oos_n": 100
+    }
+  ]
+}

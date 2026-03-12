@@ -85,8 +85,8 @@ Edit `simple_config.json` or use your existing `trading_config.json`:
 
 Or manually:
 ```bash
-pip3 install -r simple_requirements.txt
-python3 simple_trading_bot.py
+./venv/bin/pip install -r simple_requirements.txt
+./venv/bin/python simple_trading_bot.py
 ```
 
 ## What You Can Do

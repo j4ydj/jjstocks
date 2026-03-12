@@ -1,0 +1,43 @@
+# Environment variables
+.env
+.telegram_config
+
+# Logs
+*.log
+bot.log
+bot_server.log
+telegram_bot_server.log
+auto_runner.log
+
+# Runtime files
+*.pid
+nohup.out
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Scans (keep last few)
+scan_*.json
+market_scan_results.json
+signals.json
+edge_roadmap.json
+
+# State
+auto_runner_state.json

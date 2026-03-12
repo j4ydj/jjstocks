@@ -6,9 +6,19 @@ Tests that basic functions work without running the Telegram bot
 
 import sys
 import json
+from pathlib import Path
 
 print("🧪 Testing Simple Trading Bot...")
 print("=" * 50)
+
+venv_python = Path("venv/bin/python").resolve()
+current_python = Path(sys.executable).resolve()
+
+if venv_python.exists() and current_python != venv_python:
+    print("⚠️  You are not using the repo virtualenv.")
+    print(f"   Current: {current_python}")
+    print(f"   Expected: {venv_python}")
+    print("   💡 For the most reliable results use: ./venv/bin/python test_simple_bot.py")
 
 # Test 1: Imports
 print("\n1. Testing imports...")
@@ -80,7 +90,11 @@ if config.get('TELEGRAM_BOT_TOKEN') and config['TELEGRAM_BOT_TOKEN'] != 'YOUR_BO
         print("   🤖 Ready to run!")
     except Exception as e:
         print(f"   ❌ Bot init error: {e}")
-        print("   💡 Check your bot token")
+        if "proxy" in str(e).lower():
+            print("   💡 This usually means the global Python packages are mismatched.")
+            print("   💡 Use the repo virtualenv: ./venv/bin/python test_simple_bot.py")
+        else:
+            print("   💡 Check your bot token")
 else:
     print("   ⚠️  Skipping (no bot token configured)")
 
@@ -89,6 +103,6 @@ print("\n" + "=" * 50)
 print("🎯 Test Summary:")
 print("   If all tests passed, you're ready to run the bot!")
 print("   Use: ./start_simple.sh")
-print("   Or:  python3 simple_trading_bot.py")
+print("   Or:  ./venv/bin/python simple_trading_bot.py")
 print("=" * 50)
 

@@ -21,3 +21,6 @@ praw>=7.6.0
 # Utilities
 python-dateutil>=2.8.0
 
+# Alternative data (Phase 3): Google Trends
+pytrends>=4.9.0
+

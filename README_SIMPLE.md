@@ -59,8 +59,8 @@ cp simple_config.json trading_config.json
 
 Or manually:
 ```bash
-pip3 install -r simple_requirements.txt
-python3 simple_trading_bot.py
+./venv/bin/pip install -r simple_requirements.txt
+./venv/bin/python simple_trading_bot.py
 ```
 
 ### Step 4: Use It!
@@ -186,7 +186,7 @@ I didn't delete anything, but I recommend using the simple system.
 Before running the bot, test that everything works:
 
 ```bash
-python3 test_simple_bot.py
+./venv/bin/python test_simple_bot.py
 ```
 
 This checks:
