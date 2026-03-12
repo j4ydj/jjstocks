@@ -65,49 +65,71 @@ class TelegramBot:
             logger.error(f"Failed to send Telegram message: {e}")
             return False
     
-    def send_signal_alert(self, signal: Dict):
-        """Format and send trading signal."""
+    def send_signal_alert(self, signal):
+        """Format and send trading signal. Accepts dict or Signal object."""
+        # Handle both dicts and Signal objects
+        if isinstance(signal, dict):
+            ticker = signal.get('ticker', 'UNKNOWN')
+            score = signal.get('score', 0)
+            direction = signal.get('direction', 'NEUTRAL')
+            confidence = signal.get('confidence', 'LOW')
+            sources = signal.get('sources', [])
+            catalyst = signal.get('catalyst', 'N/A')
+            price = signal.get('price', 'N/A')
+            scan_time = signal.get('scan_time', datetime.now().strftime('%H:%M:%S'))
+            signal_date = signal.get('signal_date', datetime.now().strftime('%Y-%m-%d'))
+        else:
+            # Signal object
+            ticker = getattr(signal, 'ticker', 'UNKNOWN')
+            score = getattr(signal, 'score', 0)
+            direction = getattr(signal, 'direction', 'NEUTRAL')
+            confidence = getattr(signal, 'confidence', 'LOW')
+            sources = getattr(signal, 'sources', [])
+            catalyst = getattr(signal, 'catalyst', 'N/A')
+            price = getattr(signal, 'price', 'N/A')
+            scan_time = getattr(signal, 'scan_time', datetime.now().strftime('%H:%M:%S'))
+            signal_date = getattr(signal, 'signal_date', datetime.now().strftime('%Y-%m-%d'))
+
         emoji = {
             "LONG": "🚀",
             "SHORT": "🔻",
             "AVOID": "⚠️",
             "NEUTRAL": "⚪"
-        }.get(signal.get("direction", "NEUTRAL"), "📊")
+        }.get(direction, "📊")
 
-        confidence = signal.get("confidence", "LOW")
         conf_emoji = {"HIGH": "🔥", "MEDIUM": "⚡", "LOW": "💤"}.get(confidence, "💤")
 
-        # Get price and timestamp info
-        price = signal.get('price', 'N/A')
-        if isinstance(price, (int, float)):
+        # Format price
+        if isinstance(price, (int, float)) and price is not None:
             price_str = f"${price:.2f}"
         else:
-            price_str = str(price)
+            price_str = str(price) if price else 'N/A'
 
-        scan_time = signal.get('scan_time', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        signal_date = signal.get('signal_date', datetime.now().strftime('%Y-%m-%d'))
-
-        text = f"""{emoji} <b>{signal['ticker']}</b> | Score: {signal['score']:+d} | {price_str}
+        text = f"""{emoji} <b>{ticker}</b> | Score: {score:+d} | {price_str}
 
 📅 Date: {signal_date}
 ⏰ Time: {scan_time}
-📈 Direction: {signal['direction']}
+📈 Direction: {direction}
 🎯 Confidence: {confidence} {conf_emoji}
-📊 Sources: {', '.join(signal.get('sources', []))}
+📊 Sources: {', '.join(sources)}
 
 <b>Catalyst:</b>
-{signal.get('catalyst', 'N/A')}
+{catalyst}
 
 <i>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"""
 
         return self.send_message(text)
     
-    def send_daily_summary(self, signals: List[Dict], universe_size: int):
-        """Send daily scan summary."""
-        longs = [s for s in signals if s.get("direction") == "LONG"]
-        shorts = [s for s in signals if s.get("direction") == "SHORT"]
-        avoids = [s for s in signals if s.get("direction") == "AVOID"]
-        
+    def send_daily_summary(self, signals, universe_size: int):
+        """Send daily scan summary. Accepts list of dicts or Signal objects."""
+        # Handle both dicts and Signal objects
+        def get_direction(s):
+            return s.get("direction") if isinstance(s, dict) else getattr(s, "direction", None)
+
+        longs = [s for s in signals if get_direction(s) == "LONG"]
+        shorts = [s for s in signals if get_direction(s) == "SHORT"]
+        avoids = [s for s in signals if get_direction(s) == "AVOID"]
+
         text = f"""📊 <b>Daily Edge Scan Complete</b>
 
 Scanned: {universe_size} tickers
@@ -118,20 +140,29 @@ Signals found: {len(signals)}
 ⚠️ AVOID: {len(avoids)}
 
 <i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>"""
-        
+
         return self.send_message(text)
-    
-    def send_top_picks(self, signals: List[Dict], n: int = 5):
-        """Send top N picks."""
-        longs = [s for s in signals if s.get("direction") == "LONG"][:n]
-        
+
+    def send_top_picks(self, signals, n: int = 5):
+        """Send top N picks. Accepts list of dicts or Signal objects."""
+        def get_direction(s):
+            return s.get("direction") if isinstance(s, dict) else getattr(s, "direction", None)
+
+        longs = [s for s in signals if get_direction(s) == "LONG"][:n]
+
         if not longs:
             return False
-        
+
         lines = ["🎯 <b>TOP PICKS</b>\n"]
         for i, s in enumerate(longs, 1):
-            lines.append(f"{i}. {s['ticker']} (Score: {s['score']:+d})")
-        
+            if isinstance(s, dict):
+                ticker = s.get('ticker', 'UNKNOWN')
+                score = s.get('score', 0)
+            else:
+                ticker = getattr(s, 'ticker', 'UNKNOWN')
+                score = getattr(s, 'score', 0)
+            lines.append(f"{i}. {ticker} (Score: {score:+d})")
+
         text = "\n".join(lines)
         return self.send_message(text)
 
