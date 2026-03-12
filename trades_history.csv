@@ -1,2 +1,0 @@
-id,ticker,entry_price,entry_date,signal_type,confidence,edge_sources,comment,current_price,current_date,pnl_percent,days_held,status
-AAPL_20251030_155214,AAPL,271.18499755859375,2025-10-30T15:52:14.639248,STRONG_SELL,1.0,Momentum (Red Diamond),"Momentum: STRONG_BULL, Sentiment: +66.7%, Technical: ⚪ HOLD",271.1700134277344,2025-10-30T15:52:43.757487,0.0055254276579726515,0,OPEN
