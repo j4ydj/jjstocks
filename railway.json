@@ -4,6 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
+    "startCommand": "echo 'Cron-only service - no continuous process'",
     "cron": [
       {
         "command": "python cloud_run.py",
