@@ -69,6 +69,7 @@ class TelegramBot:
 
         checks = " ".join(f"[{s}]" for s in trade.signals)
 
+        slippage = getattr(trade, "slippage_pct", 1.0)
         lines = [
             f"{emoji} <b>{dir_text} {trade.ticker}</b> @ <b>${trade.entry_price}</b>",
             "",
@@ -77,6 +78,8 @@ class TelegramBot:
             f"R:R <b>{trade.risk_reward}:1</b>",
             f"Position: {trade.position_pct}% of portfolio",
             f"Exit by: {trade.exit_date}",
+            "",
+            f"<b>Gap rule:</b> If open is &gt;{slippage}% from entry, cancel or recalc size.",
             "",
             f"<b>{trade.conviction}/5</b> signals: {checks}",
         ]

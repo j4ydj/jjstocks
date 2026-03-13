@@ -9,13 +9,13 @@ Every trade has: entry, stop loss, target, risk/reward, position size, exit date
 
 Signal layers (all free data):
   1. TREND      - Price vs 20/50 MA, golden cross
-  2. MOMENTUM   - Relative strength vs SPY over 20 days
+  2. MOMENTUM   - Relative strength vs SPY over ~3 months (63 days)
   3. VOLUME     - Unusual volume (accumulation/distribution)
-  4. EARNINGS   - Post-earnings surprise drift (PEAD)
-  5. ATTENTION  - Wikipedia pageview anomaly (path less travelled)
-  6. SEC FILTER - Hard reject if going concern / material weakness
+  4. EARNINGS   - PEAD: EPS surprise >10% AND stock closed in direction on announcement day
+  5. ATTENTION  - StockTwits trader sentiment (not Wikipedia)
+  SEC FILTER    - Off by default (set USE_SEC_FILTER=1 to enable).
 
-Minimum 3 of 5 signals must agree. SEC is a filter, not a signal.
+R:R fixed at 2:1. Position risk: 1.5% (3 sig), 2% (4 sig), 2.5% (5 sig). Gap rule: cancel if open >1% from entry.
 """
 import logging
 import time
@@ -50,40 +50,35 @@ class Trade:
     reasons: List[str]          # human-readable explanation per signal
     scan_time: str
     signal_date: str
+    slippage_pct: float = 1.0   # do not enter if price moved > this % from entry (gap rule)
 
 # ---------------------------------------------------------------------------
-# Universe - tilted toward mid/small caps where signals actually matter
+# Universe: S&P 500 + extras (liquid names not in index)
 # ---------------------------------------------------------------------------
 
-UNIVERSE = [
-    # Mid-cap growth (less efficient, PEAD works better here)
-    "CRWD", "DDOG", "NET", "ZS", "MDB", "HUBS", "DOCN", "GTLB",
-    "CFLT", "PD", "BILL", "PCOR", "MNDY", "ESTC",
-    # Fintech / disruptors
-    "SOFI", "HOOD", "AFRM", "UPST", "LMND", "NU", "LC", "COIN",
-    # Biotech / pharma (high earnings volatility = PEAD gold)
-    "TGTX", "BMRN", "ALNY", "SRPT", "NBIX", "EXAS", "HALO",
-    "LEGN", "BEAM", "CRSP", "NTLA", "PCVX",
-    # Consumer growth
-    "CELH", "CAVA", "ELF", "ONON", "CROX", "SHAK", "BROS", "DKS",
-    # Industrials / infra
-    "AXON", "BLDR", "GNRC", "STRL", "ATKR", "UFPI",
-    # Energy / commodities
-    "FANG", "MTDR", "AR", "RRC", "EQT", "CLF", "AA", "MP",
-    # Space / frontier tech
-    "RKLB", "LUNR", "ASTS", "IONQ", "SOUN", "BBAI",
-    # High-beta / speculative (PEAD + attention signals strongest here)
-    "FUBO", "PLUG", "CLOV", "LCID", "RIVN",
-    # Clean energy
-    "ENPH", "FSLR", "RUN",
-    # Large cap (included for regime context, lower priority)
-    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "TSLA", "META",
-    "AMD", "NFLX", "CRM", "UBER", "PLTR",
-    # Misc momentum
-    "JOBY", "ACHR", "RGTI", "RBLX", "MRNA", "BNTX", "PYPL",
-    "IRM", "EQIX", "GME", "AMC",
-]
-UNIVERSE = list(dict.fromkeys(u.upper() for u in UNIVERSE))
+import os as _os
+
+def _load_universe() -> List[str]:
+    """Load ticker list: S&P 500 from sp500_symbols.txt, plus extras not in index."""
+    base = _os.path.dirname(_os.path.abspath(__file__))
+    path = _os.path.join(base, "sp500_symbols.txt")
+    tickers = []
+    if _os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                s = line.strip().upper()
+                if s and not s.startswith("#"):
+                    tickers.append(s)
+    extras = [
+        "RKLB", "LUNR", "ASTS", "IONQ", "SOUN", "BBAI",
+        "GME", "AMC", "JOBY", "ACHR", "RGTI",
+    ]
+    for t in extras:
+        if t not in tickers:
+            tickers.append(t)
+    return list(dict.fromkeys(tickers))
+
+UNIVERSE = _load_universe()
 
 
 # ---------------------------------------------------------------------------
@@ -137,26 +132,27 @@ def check_trend(df: pd.DataFrame) -> Optional[dict]:
 
 def check_momentum(df: pd.DataFrame, spy_df: pd.DataFrame) -> Optional[dict]:
     """
-    Compare stock's 20-day return vs SPY's 20-day return.
-    Outperformance = bullish momentum.
+    Compare stock's ~3-month return vs SPY (63 trading days).
+    Aligns with momentum factor and 30-day hold period.
     """
-    if df is None or spy_df is None or len(df) < 20 or len(spy_df) < 20:
+    window = 63  # ~3 months
+    if df is None or spy_df is None or len(df) < window or len(spy_df) < window:
         return None
 
-    stock_return = (df['Close'].iloc[-1] / df['Close'].iloc[-20] - 1) * 100
-    spy_return = (spy_df['Close'].iloc[-1] / spy_df['Close'].iloc[-20] - 1) * 100
+    stock_return = (df['Close'].iloc[-1] / df['Close'].iloc[-window] - 1) * 100
+    spy_return = (spy_df['Close'].iloc[-1] / spy_df['Close'].iloc[-window] - 1) * 100
     alpha = stock_return - spy_return
 
     if alpha > 5:
         return {
             "signal": "BUY",
-            "reason": f"Strong RS: +{stock_return:.1f}% vs SPY +{spy_return:.1f}% (alpha +{alpha:.1f}%)",
+            "reason": f"Strong RS (3m): +{stock_return:.1f}% vs SPY +{spy_return:.1f}% (alpha +{alpha:.1f}%)",
             "strength": min(1.0, alpha / 15)
         }
     elif alpha < -8:
         return {
             "signal": "SHORT",
-            "reason": f"Weak RS: {stock_return:+.1f}% vs SPY +{spy_return:.1f}% (alpha {alpha:+.1f}%)",
+            "reason": f"Weak RS (3m): {stock_return:+.1f}% vs SPY +{spy_return:.1f}% (alpha {alpha:+.1f}%)",
             "strength": min(1.0, abs(alpha) / 15)
         }
     return None
@@ -198,13 +194,17 @@ def check_volume(df: pd.DataFrame) -> Optional[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Signal 4: EARNINGS CATALYST (PEAD)
+# Signal 4: EARNINGS CATALYST (PEAD) + price reaction
 # ---------------------------------------------------------------------------
 
-def check_earnings(ticker: str) -> Optional[dict]:
+def check_earnings(ticker: str, df: pd.DataFrame) -> Optional[dict]:
     """
-    Check for recent earnings surprise > 10%. PEAD is strongest in first 40 days.
-    Only fires if earnings were 1-15 days ago (entry delay).
+    Earnings surprise > 10% AND stock closed in the right direction on announcement day.
+    BUY only if beat AND close > prior close; SHORT only if miss AND close < prior close.
+    Confirms institutional agreement with the print.
+
+    Note: yfinance earnings_dates / Reported EPS / EPS Estimate are flaky (often empty or delayed).
+    Expect EARNINGS to fire rarely. For production, consider AlphaVantage or Financial Modeling Prep (FMP).
     """
     try:
         tk = yf.Ticker(ticker)
@@ -212,6 +212,9 @@ def check_earnings(ticker: str) -> Optional[dict]:
         if ed is None or ed.empty:
             return None
     except Exception:
+        return None
+
+    if df is None or len(df) < 5:
         return None
 
     now = pd.Timestamp.now()
@@ -241,48 +244,68 @@ def check_earnings(ticker: str) -> Optional[dict]:
     else:
         surprise = ((eps_actual - eps_estimate) / abs(eps_estimate)) * 100
 
+    # Price reaction: did stock close higher (BUY) or lower (SHORT) on announcement day?
+    try:
+        earn_dt = (earn_date.to_pydatetime().date() if hasattr(earn_date, "to_pydatetime")
+                   else earn_date.date() if hasattr(earn_date, "date") else earn_date)
+        idx_ann = None
+        for i in range(len(df)):
+            row_date = df.index[i]
+            row_d = row_date.date() if hasattr(row_date, "date") else row_date
+            if row_d >= earn_dt:
+                idx_ann = i
+                break
+        if idx_ann is None or idx_ann < 1:
+            return None
+        close_ann = float(df["Close"].iloc[idx_ann])
+        close_prev = float(df["Close"].iloc[idx_ann - 1])
+        closed_higher = close_ann > close_prev
+        closed_lower = close_ann < close_prev
+    except Exception:
+        return None
+
     days_since = (now - earn_date).days
 
-    if surprise >= 10:
+    if surprise >= 10 and closed_higher:
         return {
             "signal": "BUY",
-            "reason": f"Earnings beat +{surprise:.1f}% ({days_since}d ago) EPS ${eps_actual:.2f} vs est ${eps_estimate:.2f}",
+            "reason": f"Earnings beat +{surprise:.1f}% ({days_since}d ago), stock closed up on announcement (institutional confirmation)",
             "strength": min(1.0, surprise / 40)
         }
-    elif surprise <= -10:
+    elif surprise <= -10 and closed_lower:
         return {
             "signal": "SHORT",
-            "reason": f"Earnings miss {surprise:.1f}% ({days_since}d ago) EPS ${eps_actual:.2f} vs est ${eps_estimate:.2f}",
+            "reason": f"Earnings miss {surprise:.1f}% ({days_since}d ago), stock closed down on announcement (institutional confirmation)",
             "strength": min(1.0, abs(surprise) / 40)
         }
     return None
 
 
 # ---------------------------------------------------------------------------
-# Signal 5: ATTENTION ANOMALY (Wikipedia - path less travelled)
+# Signal 5: ATTENTION (trader chatter — StockTwits)
 # ---------------------------------------------------------------------------
 
 def check_attention(ticker: str) -> Optional[dict]:
     """
-    Wikipedia pageview spike detection. Rising attention on an
-    otherwise quiet stock can precede moves.
+    StockTwits symbol stream: trader sentiment. BUY if bullish buzz, SHORT if bearish.
+    Trader attention, not general web (e.g. homework on Microsoft).
     """
     try:
-        import wikipedia_views
-        score = wikipedia_views.trend_score(ticker, 14)
+        import trader_attention
+        score = trader_attention.trend_score(ticker)
         if score is None:
             return None
 
         if score > 0.5:
             return {
                 "signal": "BUY",
-                "reason": f"Wikipedia attention surging (score {score:+.2f})",
+                "reason": f"Trader buzz bullish (StockTwits score {score:+.2f})",
                 "strength": min(1.0, score)
             }
         elif score < -0.5:
             return {
                 "signal": "SHORT",
-                "reason": f"Wikipedia attention collapsing (score {score:+.2f})",
+                "reason": f"Trader buzz bearish (StockTwits score {score:+.2f})",
                 "strength": min(1.0, abs(score))
             }
     except Exception:
@@ -351,8 +374,8 @@ def calculate_trade(
             stop = entry * 0.95  # default 5% stop
             risk_pct = 5.0
 
-        # Target: minimum 1.5:1 R:R, scale with conviction
-        rr_target = 1.5 + (conviction - 3) * 0.5  # 3 signals=1.5, 4=2.0, 5=2.5
+        # Target: static 2:1 R:R for all trades (mathematically sound)
+        rr_target = 2.0
         target = entry + (entry - stop) * rr_target
 
         reward_pct = (target - entry) / entry * 100
@@ -367,19 +390,22 @@ def calculate_trade(
             stop = entry * 1.05
             risk_pct = 5.0
 
-        rr_target = 1.5 + (conviction - 3) * 0.5
+        rr_target = 2.0
         target = entry - (stop - entry) * rr_target
 
         reward_pct = (entry - target) / entry * 100
 
     risk_reward = reward_pct / risk_pct if risk_pct > 0 else 0
 
-    # Position sizing: risk 2% of portfolio per trade
-    # position_pct = 2% / risk_pct (so if risk is 5%, position = 40% ... cap at 10%)
-    position_pct = min(10.0, (2.0 / risk_pct) * 100) if risk_pct > 0 else 2.0
+    # Position sizing: conviction-based portfolio risk (1.5% / 2% / 2.5%).
+    # Formula: position_pct = (portfolio_risk_pct / risk_pct) * 100 so that if stopped out we lose portfolio_risk_pct.
+    # Cap at 30% so we can actually reach 2% portfolio risk when stop is ~7% (2/7*100 ≈ 28.5%).
+    portfolio_risk_pct = {3: 1.5, 4: 2.0, 5: 2.5}.get(conviction, 2.0)
+    position_pct = min(30.0, (portfolio_risk_pct / risk_pct) * 100) if risk_pct > 0 else 2.0
 
     exit_date = (datetime.now() + timedelta(days=hold_days)).strftime('%Y-%m-%d')
     now = datetime.now()
+    slippage_pct = 1.0  # gap rule: cancel or recalc if open > 1% away from entry
 
     return Trade(
         ticker=ticker,
@@ -397,6 +423,7 @@ def calculate_trade(
         reasons=reasons,
         scan_time=now.strftime('%H:%M:%S'),
         signal_date=now.strftime('%Y-%m-%d'),
+        slippage_pct=slippage_pct,
     )
 
 
@@ -427,25 +454,36 @@ class EdgeSystem:
             pass
         return None
 
-    def analyze(self, ticker: str) -> Optional[Trade]:
+    def analyze(
+        self,
+        ticker: str,
+        df: Optional[pd.DataFrame] = None,
+        spy_df: Optional[pd.DataFrame] = None,
+    ) -> Optional[Trade]:
         """
         Run all signal layers on a ticker.
         Returns a Trade only if >= min_conviction signals agree on direction.
+        If df/spy_df are provided (e.g. from bulk download), they are used; otherwise fetched per ticker.
         """
-        # Get price data
-        try:
-            tk = yf.Ticker(ticker)
-            df = tk.history(period="6mo")
-            if df is None or len(df) < 50:
+        # Use provided price data or fetch
+        if df is None:
+            try:
+                tk = yf.Ticker(ticker)
+                df = tk.history(period="6mo")
+                if df is None or len(df) < 63:
+                    return None
+                df.index = df.index.tz_localize(None) if df.index.tz else df.index
+            except Exception:
                 return None
-            df.index = df.index.tz_localize(None) if df.index.tz else df.index
-        except Exception:
-            return None
+        else:
+            if len(df) < 63:
+                return None
 
-        spy_df = self._get_spy()
+        if spy_df is None:
+            spy_df = self._get_spy()
 
-        # SEC filter first - hard reject
-        if not check_sec_risk(ticker):
+        # SEC filter: optional (set USE_SEC_FILTER=1 to enable). Off by default for S&P 500 + 2% stops.
+        if _os.environ.get("USE_SEC_FILTER", "").strip() == "1" and not check_sec_risk(ticker):
             return None
 
         # Collect signals
@@ -485,7 +523,7 @@ class EdgeSystem:
                 short_reasons.append(volume['reason'])
 
         # 4. Earnings
-        earnings = check_earnings(ticker)
+        earnings = check_earnings(ticker, df)
         if earnings:
             if earnings['signal'] == 'BUY':
                 buy_signals.append('EARNINGS')
@@ -494,7 +532,7 @@ class EdgeSystem:
                 short_signals.append('EARNINGS')
                 short_reasons.append(earnings['reason'])
 
-        # 5. Attention (Wikipedia)
+        # 5. Attention (StockTwits)
         attention = check_attention(ticker)
         if attention:
             if attention['signal'] == 'BUY':
@@ -527,26 +565,63 @@ class EdgeSystem:
         return None
 
     def scan(self, tickers: List[str] = None) -> List[Trade]:
-        """Scan universe for actionable trades."""
-        tickers = tickers or UNIVERSE
+        """Scan universe for actionable trades. Bulk-downloads price data first for speed."""
+        tickers = list(tickers or UNIVERSE)
         trades = []
 
         logger.info(f"Scanning {len(tickers)} tickers (min conviction: {self.min_conviction})...")
 
+        # Bulk-download all price data in one call (~5 sec for 500+ tickers)
+        prefetched: Dict[str, pd.DataFrame] = {}
+        spy_df: Optional[pd.DataFrame] = None
+        try:
+            syms = tickers + ["SPY"]
+            raw = yf.download(
+                syms,
+                period="6mo",
+                group_by="ticker",
+                progress=False,
+                threads=True,
+                auto_adjust=True,
+            )
+            if raw is not None and not raw.empty:
+                if isinstance(raw.columns, pd.MultiIndex):
+                    ticker_cols = raw.columns.get_level_values(0).unique()
+                    if "SPY" in ticker_cols:
+                        spy_df = raw["SPY"].copy()
+                        if spy_df.index.tz is not None:
+                            spy_df.index = spy_df.index.tz_localize(None)
+                    for t in tickers:
+                        if t in ticker_cols:
+                            df_t = raw[t].copy()
+                            if df_t.index.tz is not None:
+                                df_t.index = df_t.index.tz_localize(None)
+                            if len(df_t) >= 63 and "Close" in df_t.columns:
+                                prefetched[t] = df_t
+                else:
+                    # Single-ticker result (e.g. one symbol)
+                    if len(tickers) == 1 and len(raw) >= 63:
+                        if raw.index.tz is not None:
+                            raw = raw.copy()
+                            raw.index = raw.index.tz_localize(None)
+                        prefetched[tickers[0]] = raw
+        except Exception as e:
+            logger.warning("Bulk download failed, falling back to per-ticker fetch: %s", e)
+
         for i, ticker in enumerate(tickers, 1):
-            if i % 20 == 0:
+            if i % 50 == 0:
                 logger.info(f"  Progress: {i}/{len(tickers)}")
 
             try:
-                trade = self.analyze(ticker)
+                df = prefetched.get(ticker)
+                if df is None:
+                    time.sleep(0.3)  # rate limit when we have to fetch this ticker in analyze()
+                trade = self.analyze(ticker, df=df, spy_df=spy_df)
                 if trade:
                     trades.append(trade)
                     logger.info(f"  >> TRADE: {trade.direction} {trade.ticker} @ ${trade.entry_price}")
             except Exception as e:
                 logger.debug(f"Error analyzing {ticker}: {e}")
-
-            # Rate limit yfinance
-            time.sleep(0.3)
 
         # Sort: highest conviction first, then by risk/reward
         trades.sort(key=lambda t: (t.conviction, t.risk_reward), reverse=True)
