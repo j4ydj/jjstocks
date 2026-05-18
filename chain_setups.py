@@ -132,6 +132,8 @@ def _catch_up_setups(chain: MomentumChain) -> List[TradeSetup]:
     candidates.sort(key=lambda x: abs(x.corr_21d), reverse=True)
 
     for lead in candidates[:3]:
+        if lead.lead_lag_days < 1 and os.getenv("REQUIRE_LEADER_PRIOR_DAY", "1") == "1":
+            continue
         if abs(lead.move_1d_pct) < LEADER_MOVE_MIN:
             continue
         if abs(f.return_1d_pct) >= abs(lead.move_1d_pct) - CATCHUP_GAP_MIN:
@@ -288,9 +290,16 @@ def find_setups(
 def find_all_setups(
     chains: List[MomentumChain],
     price_cache: Optional[Dict[str, pd.DataFrame]] = None,
+    apply_learning: bool = True,
 ) -> List[TradeSetup]:
     setups: List[TradeSetup] = []
     for chain in chains:
         setups.extend(find_setups(chain, price_cache))
     setups.sort(key=lambda s: (s.hit_rate_oos or s.hit_rate or 0), reverse=True)
+    if apply_learning and os.getenv("DISABLE_SETUP_LEARNING", "") != "1":
+        try:
+            from setup_learning import filter_setups
+            setups, _blocked = filter_setups(setups)
+        except Exception:
+            pass
     return setups

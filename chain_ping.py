@@ -239,6 +239,9 @@ def scan_and_notify(send_telegram: bool = True) -> Tuple[MomentumScanResult, str
             sent = bot.send_message(message)
 
     try:
+        if os.getenv("REBUILD_LEARN_SCORES", "") == "1":
+            from setup_learning import rebuild_scores
+            rebuild_scores()
         log_proposed_trades(result, setups, telegram_sent=sent, alert_mode=ALERT_MODE)
         update_outcomes(min_age_days=1)
     except Exception as e:

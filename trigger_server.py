@@ -52,8 +52,11 @@ class TriggerHandler(BaseHTTPRequestHandler):
         try:
             if path == "/run/outcomes":
                 from trade_tracker import update_outcomes, write_report, SETUP_FILE
+                from daily_pipeline import write_scoreboard
+
                 n = update_outcomes(min_age_days=1)
                 write_report()
+                write_scoreboard()
                 out = {"ok": True, "updated": n, "log": SETUP_FILE}
             else:
                 from cloud_run import run_scan

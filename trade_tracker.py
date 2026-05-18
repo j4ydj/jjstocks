@@ -273,6 +273,11 @@ def update_outcomes(min_age_days: int = 1) -> int:
     if updated:
         save_all(records)
     export_csv(records)
+    try:
+        from setup_learning import rebuild_scores
+        rebuild_scores()
+    except Exception:
+        pass
     return updated
 
 
@@ -286,9 +291,10 @@ def export_csv(records: Optional[List[Dict[str, Any]]] = None) -> str:
         return CSV_FILE
     _ensure_dir()
     fields = [
-        "trade_id", "scan_time", "setup_type", "direction", "ticker", "leader",
-        "entry_price", "stop_loss", "target_price", "corr", "hit_rate_oos",
-        "telegram_sent", "status",
+        "trade_id", "scan_time", "setup_type", "prediction_type", "direction",
+        "ticker", "leader", "chain_path", "predicted_move_pct", "expected_by_date",
+        "entry_price", "stop_loss", "target_price", "position_pct", "corr",
+        "hit_rate", "telegram_sent", "status",
         "ret_1d", "ret_5d", "ret_10d", "stop_hit", "target_hit", "thesis",
     ]
     with open(CSV_FILE, "w", newline="") as fh:
@@ -296,6 +302,8 @@ def export_csv(records: Optional[List[Dict[str, Any]]] = None) -> str:
         w.writeheader()
         for r in trades:
             row = {**r, **(r.get("outcomes") or {})}
+            if row.get("hit_rate") is None and row.get("hit_rate_oos") is not None:
+                row["hit_rate"] = row["hit_rate_oos"]
             w.writerow(row)
     return CSV_FILE
 
