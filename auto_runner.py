@@ -120,70 +120,35 @@ class AutoRunner:
         logger.info("=" * 70)
         
         try:
-            if quick:
-                # Fast scan - core universe
-                logger.info("Running QUICK scan (23 tickers)...")
-                from working_edge_system import WorkingEdgeSystem
-                
-                system = WorkingEdgeSystem()
-                universe = [
-                    "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN", "GOOGL",
-                    "GME", "AMC", "PLTR", "COIN", "HOOD", "SPY", "QQQ",
-                    "AMD", "NFLX", "CRM", "UBER", "SNOW", "ROKU", "RKLB"
-                ]
-                signals = system.scan(universe, min_score=2)
-                
-            else:
-                # Full scan - priority universe
-                logger.info("Running FULL scan (154 tickers)...")
-                from market_wide_scanner import MarketWideScanner, get_priority_universe
-                
-                scanner = MarketWideScanner(delay=0.3)
-                universe = get_priority_universe()
-                signals = scanner.scan(universe, min_score=2)
-            
-            # Send Telegram alerts
+            from momentum_plays import scan_and_save, format_plays
+            from momentum_chain import format_report
+            from universe import UNIVERSE
+
+            top_n = 5 if quick else 10
+            logger.info("Running momentum chain scan (top %d volatile)...", top_n)
+            result, plays, path = scan_and_save(top_n=top_n)
+
             try:
                 from telegram_alerts import TelegramBot
                 bot = TelegramBot()
-                
                 if bot.enabled:
-                    # Send summary
-                    bot.send_daily_summary(signals, len(universe))
-                    
-                    # Send high confidence signals
-                    high_conf = [s for s in signals if s.get("confidence") == "HIGH"]
-                    if high_conf:
-                        bot.send_message("🔥 <b>HIGH CONFIDENCE SIGNALS</b>")
-                        for sig in high_conf[:3]:
-                            bot.send_signal_alert(sig)
-                    
-                    logger.info("📤 Telegram alerts sent")
+                    bot.send_momentum_scan(result)
+                    for pl in plays[:5]:
+                        bot.send_trade_play(pl)
+                    logger.info("📤 Telegram alerts sent (%d plays)", len(plays))
                 else:
-                    logger.info("📤 Telegram not configured (alerts disabled)")
+                    logger.info("📤 Telegram not configured")
             except Exception as e:
                 logger.error(f"Telegram error: {e}")
-            
-            # Save results
-            output = {
-                "timestamp": datetime.now().isoformat(),
-                "scan_type": "quick" if quick else "full",
-                "universe_size": len(universe),
-                "signals_found": len(signals),
-                "signals": signals
-            }
-            
-            filename = f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(filename, 'w') as f:
-                json.dump(output, f, indent=2)
-            
-            logger.info(f"💾 Results saved to {filename}")
-            
-            # Update state
+
+            logger.info(format_report(result))
+            if plays:
+                logger.info(format_plays(plays))
+            logger.info("💾 Results saved to %s", path)
+
             self.run_count += 1
             self.save_state()
-            
-            logger.info(f"✅ Scan complete: {len(signals)} signals")
+            logger.info("✅ Scan complete: %d plays from universe %d", len(plays), len(UNIVERSE))
             return True
             
         except Exception as e:

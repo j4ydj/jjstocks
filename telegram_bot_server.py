@@ -51,16 +51,18 @@ class TelegramBotServer:
         self.last_update_id = 0
         self.running = False
         self.last_scan_results = []
+        self.last_scan_meta = None
         self.command_handlers = {
             '/start': self.cmd_start,
             '/help': self.cmd_help,
+            '/scan': self.cmd_scan,
             '/quick': self.cmd_quick,
-            '/full': self.cmd_full,
-            '/all': self.cmd_all,
-            '/longs': self.cmd_longs,
+            '/plays': self.cmd_plays,
+            '/full': self.cmd_scan,
+            '/all': self.cmd_scan,
+            '/longs': self.cmd_plays,
             '/shorts': self.cmd_shorts,
             '/status': self.cmd_status,
-            '/scan': self.cmd_quick,  # Alias
         }
     
     def api_call(self, method: str, params: Dict = None) -> Optional[Dict]:
@@ -115,211 +117,108 @@ class TelegramBotServer:
     
     def cmd_start(self, chat_id: str):
         """Welcome message."""
-        welcome = """🤖 <b>Trading Bot Activated!</b>
+        welcome = """🤖 <b>Momentum Chain Bot</b>
 
-I'll scan the market for edge opportunities.
+Top volatile names → upstream/downstream map → trade plays.
 
 <b>Commands:</b>
-/quick - Fast scan (23 tickers, 2 min)
-/full - Full scan (154 tickers, 7 min)
-/all - Complete scan (362 tickers, 15 min)
-/longs - Top buy signals
-/shorts - Top sell signals
+/scan - Full chain + plays (~3 min)
+/quick - Top 5 volatile only (~2 min)
+/plays - Show plays from last scan
 /status - Bot status
-/help - Show all commands
-
-Just send a command to run a scan."""
+/help - Commands"""
         self.send_message(chat_id, welcome)
     
     def cmd_help(self, chat_id: str):
         """Help message."""
-        help_text = """📋 <b>Available Commands</b>
+        help_text = """📋 <b>Commands</b>
 
-<b>Scans:</b>
-/quick - 23 priority tickers (~2 min)
-/full - 154 high-potential tickers (~7 min)
-/all - Complete market scan 362 tickers (~15 min)
-
-<b>Results:</b>
-/longs - Show latest LONG signals
-/shorts - Show latest SHORT signals
-
-<b>Info:</b>
-/status - Bot status & last scan
-/help - This message
-
-<b>Tip:</b> Use /quick for frequent updates, /full for daily analysis."""
+/scan - Chain map + trade plays (top 10 volatile)
+/quick - Faster scan (top 5)
+/plays - Plays from last /scan
+/status - Status
+/help - This message"""
         self.send_message(chat_id, help_text)
     
+    def _run_momentum_scan(self, chat_id: str, top_n: int = 10):
+        from momentum_plays import scan_and_save
+        from telegram_alerts import TelegramBot
+
+        result, plays, path = scan_and_save(top_n=top_n)
+        self.last_scan_results = plays
+        self.last_scan_meta = result
+
+        bot = TelegramBot()
+        if bot.enabled:
+            bot.send_momentum_scan(result)
+            for pl in plays[:5]:
+                bot.send_trade_play(pl)
+
+        buys = [p for p in plays if p.direction == "BUY"]
+        shorts = [p for p in plays if p.direction == "SHORT"]
+        self.send_message(
+            chat_id,
+            f"✅ <b>Scan done</b>\nPlays: {len(plays)} (BUY {len(buys)}, SHORT {len(shorts)})\n"
+            f"Saved: {path}\nUse /plays for details.",
+        )
+
     def cmd_quick(self, chat_id: str):
-        """Run quick scan."""
-        self.send_message(chat_id, "⏳ Running quick scan (23 tickers)...\nETA: 2 minutes")
-        
+        self.send_message(chat_id, "⏳ Quick scan (top 5 volatile)...")
         try:
-            from working_edge_system import WorkingEdgeSystem
-            
-            system = WorkingEdgeSystem()
-            universe = [
-                "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN", "GOOGL",
-                "GME", "AMC", "PLTR", "COIN", "HOOD", "SPY", "QQQ",
-                "AMD", "NFLX", "CRM", "UBER", "SNOW", "ROKU", "RKLB"
-            ]
-            
-            signals = system.scan(universe, min_score=2)
-            self.last_scan_results = signals
-            
-            # Send summary
-            longs = [s for s in signals if s.direction == "LONG"]
-            shorts = [s for s in signals if s.direction == "SHORT"]
-            avoids = [s for s in signals if s.direction == "AVOID"]
-            
-            summary = f"""✅ <b>Quick Scan Complete</b>
-
-Scanned: {len(universe)} tickers
-Signals: {len(signals)}
-
-🚀 LONG: {len(longs)}
-🔻 SHORT: {len(shorts)}
-⚠️ AVOID: {len(avoids)}
-
-Use /longs or /shorts for details."""
-            
-            self.send_message(chat_id, summary)
-            
-            # Send top longs
-            if longs:
-                self.send_message(chat_id, "🎯 <b>Top LONG Picks:</b>")
-                for s in longs[:3]:
-                    text = f"{s.ticker}: +{s.score} ({s.confidence})\n{s.catalyst[:60]}"
-                    self.send_message(chat_id, text)
-            
+            self._run_momentum_scan(chat_id, top_n=5)
         except Exception as e:
             logger.error(f"Quick scan failed: {e}")
             self.send_message(chat_id, f"❌ Scan failed: {str(e)[:100]}")
-    
-    def cmd_full(self, chat_id: str):
-        """Run full scan."""
-        self.send_message(chat_id, "⏳ Running full scan (154 tickers)...\nETA: 7 minutes")
-        
-        try:
-            from market_wide_scanner import MarketWideScanner, get_priority_universe
-            
-            scanner = MarketWideScanner(delay=0.3)
-            universe = get_priority_universe()
-            
-            signals = scanner.scan(universe, min_score=2)
-            self.last_scan_results = signals
-            
-            # Format results
-            longs = [s for s in signals if s.get("direction") == "LONG"]
-            
-            summary = f"""✅ <b>Full Scan Complete</b>
 
-Scanned: {len(universe)} tickers
-Signals: {len(signals)}
-🚀 LONG: {len(longs)}
-
-Use /longs for top picks."""
-            
-            self.send_message(chat_id, summary)
-            
-            # Send top 5 longs
-            if longs:
-                self.send_message(chat_id, "🎯 <b>Top 5 LONG Signals:</b>")
-                for s in longs[:5]:
-                    text = f"<b>{s['ticker']}</b>: +{s['score']}\n{s.get('catalyst', 'N/A')[:50]}"
-                    self.send_message(chat_id, text)
-            
-        except Exception as e:
-            logger.error(f"Full scan failed: {e}")
-            self.send_message(chat_id, f"❌ Scan failed: {str(e)[:100]}")
-    
-    def cmd_all(self, chat_id: str):
-        """Run complete scan."""
-        self.send_message(chat_id, "⏳ Running complete scan (362 tickers)...\nETA: 15 minutes\n\nI'll message you when done.")
-        
-        # Run in background thread so bot stays responsive
-        def run_complete_scan():
+    def cmd_scan(self, chat_id: str):
+        self.send_message(chat_id, "⏳ Momentum chain scan (~3 min)...")
+        def run():
             try:
-                from market_wide_scanner import MarketWideScanner, get_full_universe
-                
-                scanner = MarketWideScanner(delay=0.3)
-                universe = get_full_universe()
-                
-                signals = scanner.scan(universe[:200], min_score=2)  # Limit to 200 for speed
-                self.last_scan_results = signals
-                
-                longs = [s for s in signals if s.get("direction") == "LONG"]
-                
-                self.send_message(chat_id, f"✅ <b>Complete Scan Done!</b>\n\nScanned: 200 tickers\n🚀 LONG signals: {len(longs)}\n\nUse /longs to see picks.")
-                
+                self._run_momentum_scan(chat_id, top_n=10)
             except Exception as e:
-                self.send_message(chat_id, f"❌ Complete scan failed: {str(e)[:100]}")
-        
-        thread = threading.Thread(target=run_complete_scan)
-        thread.daemon = True
-        thread.start()
-    
+                self.send_message(chat_id, f"❌ {str(e)[:100]}")
+        threading.Thread(target=run, daemon=True).start()
+
+    def cmd_full(self, chat_id: str):
+        self.cmd_scan(chat_id)
+
+    def cmd_all(self, chat_id: str):
+        self.cmd_scan(chat_id)
+
+    def cmd_plays(self, chat_id: str):
+        plays = self.last_scan_results or []
+        if not plays:
+            self.send_message(chat_id, "No plays yet. Run /scan first.")
+            return
+        from telegram_alerts import TelegramBot
+        bot = TelegramBot()
+        for pl in plays[:5]:
+            bot.send_trade_play(pl)
+
     def cmd_longs(self, chat_id: str):
-        """Show top long signals."""
-        if not self.last_scan_results:
-            self.send_message(chat_id, "No scan results yet. Run /quick or /full first.")
-            return
-        
-        longs = [s for s in self.last_scan_results if getattr(s, 'direction', s.get('direction')) == "LONG"]
-        
-        if not longs:
-            self.send_message(chat_id, "No LONG signals found in last scan.")
-            return
-        
-        self.send_message(chat_id, f"🚀 <b>Top {min(5, len(longs))} LONG Signals:</b>")
-        
-        for s in longs[:5]:
-            ticker = getattr(s, 'ticker', s.get('ticker'))
-            score = getattr(s, 'score', s.get('score'))
-            catalyst = getattr(s, 'catalyst', s.get('catalyst', 'N/A'))
-            
-            text = f"<b>{ticker}</b> | Score: +{score}\n{catalyst[:80]}"
-            self.send_message(chat_id, text)
-    
+        self.cmd_plays(chat_id)
+
     def cmd_shorts(self, chat_id: str):
-        """Show top short signals."""
-        if not self.last_scan_results:
-            self.send_message(chat_id, "No scan results yet. Run /quick or /full first.")
+        plays = [p for p in (self.last_scan_results or []) if getattr(p, "direction", None) == "SHORT"]
+        if not plays:
+            self.send_message(chat_id, "No SHORT plays in last scan.")
             return
-        
-        shorts = [s for s in self.last_scan_results if getattr(s, 'direction', s.get('direction')) == "SHORT"]
-        
-        if not shorts:
-            self.send_message(chat_id, "No SHORT signals found in last scan.")
-            return
-        
-        self.send_message(chat_id, f"🔻 <b>SHORT Signals:</b>")
-        
-        for s in shorts[:3]:
-            ticker = getattr(s, 'ticker', s.get('ticker'))
-            score = getattr(s, 'score', s.get('score'))
-            text = f"<b>{ticker}</b> | Score: {score}"
-            self.send_message(chat_id, text)
+        from telegram_alerts import TelegramBot
+        bot = TelegramBot()
+        for pl in plays[:3]:
+            bot.send_trade_play(pl)
     
     def cmd_status(self, chat_id: str):
         """Show bot status."""
-        from working_edge_system import WorkingEdgeSystem
-        
-        system = WorkingEdgeSystem()
-        modules = list(system.modules.keys())
-        
-        status = f"""📊 <b>Bot Status</b>
+        meta = self.last_scan_meta
+        when = getattr(meta, "scan_time", "never") if meta else "never"
+        status = f"""📊 <b>Momentum Chain Bot</b>
 
 ✅ Online
-Modules loaded: {len(modules)}
-Last scan: {len(self.last_scan_results)} signals
+Last scan: {when}
+Plays cached: {len(self.last_scan_results or [])}
 
-<b>Available modules:</b>
-{', '.join(modules)}
-
-Send /quick or /full to run a scan."""
-        
+Send /scan or /quick to run."""
         self.send_message(chat_id, status)
     
     # ===== Main Loop =====

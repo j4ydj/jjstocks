@@ -1,17 +1,6 @@
 #!/usr/bin/env python3
 """
-TELEGRAM ALERTS v2 - Trade Alerts Only
-=======================================
-Sends actionable trade alerts. No noise.
-
-Each message is a complete trade:
-  - Entry price
-  - Stop loss
-  - Target price
-  - Risk/reward ratio
-  - Position size
-  - Exit date
-  - Confirmation signals
+Telegram delivery for chain alerts (see chain_ping.py for message text).
 """
 import os
 import logging
@@ -119,6 +108,83 @@ Scanned: {universe_size} tickers
 <i>{datetime.now().strftime('%Y-%m-%d %H:%M')}</i>"""
 
         return self.send_message(text)
+
+    def send_momentum_scan(self, result) -> bool:
+        """Send momentum chain scan: top volatile + per-name upstream/downstream."""
+        picks = result.top_volatile
+        lines = [
+            "🔗 <b>Momentum Chain Scan</b>",
+            f"Universe {result.universe_size} → focus top {len(picks)} volatile",
+            "",
+            "<b>Top volatile now</b>",
+        ]
+        for p in picks:
+            lines.append(
+                f"#{p.rank} <b>{p.ticker}</b> vol {p.vol_annualized_pct:.0f}% "
+                f"5d {p.return_5d_pct:+.1f}% 1d {p.return_1d_pct:+.1f}%"
+            )
+
+        self.send_message("\n".join(lines))
+
+        for chain in result.chains[:5]:
+            f = chain.focus
+            msg = [f"⚡ <b>{f.ticker}</b> (#{f.rank} vol {f.vol_annualized_pct:.0f}%)"]
+            for n in chain.narrative[:2]:
+                safe = n.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                msg.append(f"• {safe}")
+            up = [l for l in chain.links if l.direction == "upstream"][:4]
+            if up:
+                msg.append("\n<b>Upstream</b>")
+                for l in up:
+                    msg.append(
+                        f"  {l.node} corr{l.corr_21d:+.2f} lag{l.lead_lag_days:+d}d "
+                        f"1d{l.move_1d_pct:+.1f}%"
+                    )
+            down = [l for l in chain.links if l.direction == "downstream"][:3]
+            if down:
+                msg.append("\n<b>Downstream</b>")
+                for l in down:
+                    msg.append(f"  {l.node} corr{l.corr_21d:+.2f}")
+            recent = chain.events[-5:]
+            if recent:
+                msg.append("\n<b>Recent chain</b>")
+                for e in recent:
+                    arrow = "↑" if e.direction == "up" else "↓"
+                    msg.append(f"  {e.date} {e.node} {arrow}{abs(e.move_pct):.1f}%")
+            self.send_message("\n".join(msg))
+
+        if len(result.chains) > 5:
+            self.send_message(
+                f"<i>+{len(result.chains) - 5} more chains in JSON snapshot</i>"
+            )
+        return True
+
+    def send_trade_play(self, play) -> bool:
+        """Send a momentum-chain trade play."""
+        emoji = "📈" if play.direction == "BUY" else "📉"
+        lines = [
+            f"{emoji} <b>{play.direction} {play.ticker}</b> — <i>{play.play_type}</i>",
+            f"@ ${play.entry_price}  Stop ${play.stop_loss} ({play.risk_pct}%)",
+            f"Target ${play.target_price} (+{play.reward_pct}%)  R:R {play.risk_reward}",
+            f"Size {play.position_pct}%  Exit {play.exit_date}",
+            f"<b>Score {getattr(play, 'score', 0)}/100</b>  Conviction {play.conviction}/5",
+            "",
+            f"<b>Trigger:</b> {play.trigger}",
+        ]
+        if getattr(play, "trigger_price", None):
+            lines.append(f"<b>Level:</b> ${play.trigger_price}")
+        lines.extend([
+            f"<b>Invalidate:</b> {play.invalidation}",
+            f"<b>Watch:</b> {', '.join(play.watchlist)}",
+        ])
+        if play.related_ticker:
+            lines.append(f"<b>Related:</b> {play.related_ticker}")
+        if getattr(play, "basket_tickers", None):
+            lines.append(f"<b>Basket:</b> {', '.join(play.basket_tickers)}")
+        for t in play.thesis[:4]:
+            safe = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            lines.append(f"• {safe}")
+        return self.send_message("\n".join(lines))
 
 
 if __name__ == "__main__":

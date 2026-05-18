@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
-EDGE SYSTEM v2 - Rebuilt From Scratch
-=====================================
-Only outputs actionable trades. No noise, no maybes.
+DEPRECATED — legacy 5-signal edge filter.
 
-A trade is only generated when >= 3 independent signals confirm.
-Every trade has: entry, stop loss, target, risk/reward, position size, exit date.
+Use instead:
+  python run_momentum_chain.py          # chain map + trade plays
+  python cloud_run.py                   # Railway / cron entry point
 
-Signal layers (all free data):
-  1. TREND      - Price vs 20/50 MA, golden cross
-  2. MOMENTUM   - Relative strength vs SPY over ~3 months (63 days)
-  3. VOLUME     - Unusual volume (accumulation/distribution)
-  4. EARNINGS   - PEAD: EPS surprise >10% AND stock closed in direction on announcement day
-  5. ATTENTION  - StockTwits trader sentiment (not Wikipedia)
-  SEC FILTER    - Off by default (set USE_SEC_FILTER=1 to enable).
+Active modules: momentum_chain.py, momentum_plays.py, trade_levels.py, universe.py
+"""
+import warnings
+warnings.warn(
+    "working_edge_system is deprecated; use run_momentum_chain.py",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-R:R fixed at 2:1. Position risk: 1.5% (3 sig), 2% (4 sig), 2.5% (5 sig). Gap rule: cancel if open >1% from entry.
+"""
+EDGE SYSTEM v2 (legacy)
+=======================
+Only outputs actionable trades when >= 3 independent signals confirm.
 """
 import logging
 import time

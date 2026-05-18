@@ -1,40 +1,50 @@
-# Edge System
+# Momentum Chain Alerts
 
-Multi-factor trading signal generator. Only outputs actionable trades when 3+ independent signals confirm.
+Finds the most volatile stocks, then tells you on Telegram: **what moved**, at **what price**, and **what usually moves with it** — timestamped.
 
-## How It Works
+## Railway (automatic)
 
-5 signal layers, all free data:
+1. Deploy this repo on Railway (`python trigger_server.py` — already in `railway.json`).
+2. Set variables:
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
+   - `CRON_SECRET` (random string)
+3. Point [cron-job.org](https://cron-job.org) at:
+   ```text
+   https://YOUR-APP.up.railway.app/run?token=YOUR_CRON_SECRET
+   ```
+   Schedule: hourly on weekdays, **5 minute timeout**.
 
-| Signal | Source | What It Detects |
-|--------|--------|----------------|
-| TREND | yfinance | Price vs 20/50 MA |
-| MOMENTUM | yfinance | Relative strength vs SPY |
-| VOLUME | yfinance | Unusual accumulation/distribution |
-| EARNINGS | yfinance | Post-earnings surprise drift |
-| ATTENTION | Wikipedia API | Pageview anomalies |
+See `RAILWAY_CRON.md` for details.
 
-Plus SEC filing risk filter (hard reject on going concern / material weakness).
+## Example Telegram message
 
-**Minimum 3 of 5 signals must agree on direction.** No trade is generated otherwise.
+```text
+Chain alert
+2026-05-17 22:30:00
 
-## Output
+RKLB  $124.77  -5.9% today  (+18.3% over 5 days)
+These often move with it:
+  • LUNR  $8.42  -7.2% today
+  • ASTS  $28.15  +0.8% today
+Macro to watch (moved first):
+  • QQQ  $512.30  -1.5% today
+```
 
-Every trade includes: entry, stop loss, target, risk/reward, position size, exit date.
+## Run locally
 
-## Deployment
+```bash
+python chain_ping.py          # print alert (no Telegram)
+python cloud_run.py           # scan + Telegram (needs env vars)
+```
 
-Runs on Railway (free tier, serverless cron). Sends alerts to Telegram.
+## Optional env
 
-## Files
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `MOMENTUM_TOP_N` | 8 | How many volatile names to track |
+| `PING_MOVE_MIN_PCT` | 1.5 | Min 1-day % move to highlight |
 
-| File | Purpose |
-|------|---------|
-| `working_edge_system.py` | Core signal engine |
-| `cloud_run.py` | Cloud entry point |
-| `telegram_alerts.py` | Telegram alerts |
-| `sec_filing_risk.py` | SEC EDGAR risk filter |
-| `wikipedia_views.py` | Wikipedia attention tracking |
-| `earnings_drift.py` | Earnings surprise detection |
-| `railway.json` | Railway config |
-| `requirements.txt` | Dependencies |
+## Other files
+
+Older experiments (`momentum_plays.py`, `working_edge_system.py`) are not used by Railway anymore.

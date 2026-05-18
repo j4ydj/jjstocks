@@ -35,9 +35,11 @@ ENV/
 
 # Scans (keep last few)
 scan_*.json
+momentum_chain_*.json
 market_scan_results.json
 signals.json
 edge_roadmap.json
+data/
 
 # State
 auto_runner_state.json
