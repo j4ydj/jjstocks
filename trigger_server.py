@@ -31,7 +31,7 @@ class TriggerHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"ok": true, "status": "up"}')
             return
 
-        if path not in ("/", "/run", "/cron"):
+        if path not in ("/", "/run", "/cron", "/run/outcomes"):
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b"Not found")
@@ -49,11 +49,16 @@ class TriggerHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"Set CRON_SECRET in Railway and pass ?token=CRON_SECRET")
             return
 
-        # Run scan (takes 2–5 min). Set cron-job.org timeout to 5 min or more.
         try:
-            from cloud_run import run_scan
-            success = run_scan()
-            out = {"ok": success, "message": "OK" if success else "Scan failed"}
+            if path == "/run/outcomes":
+                from trade_tracker import update_outcomes, write_report, SETUP_FILE
+                n = update_outcomes(min_age_days=1)
+                write_report()
+                out = {"ok": True, "updated": n, "log": SETUP_FILE}
+            else:
+                from cloud_run import run_scan
+                success = run_scan()
+                out = {"ok": success, "message": "OK" if success else "Scan failed"}
         except Exception as e:
             logger.exception("Trigger run failed")
             out = {"ok": False, "message": str(e)}

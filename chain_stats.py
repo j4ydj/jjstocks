@@ -131,6 +131,30 @@ def dedupe_macro_links(links: List, max_per_bucket: int = 1) -> List:
     return other + kept
 
 
+OOS_TEST_DAYS = int(__import__("os").getenv("LAG_OOS_TEST_DAYS", "40"))
+
+
+def oos_hit_rate(
+    focus_rets: pd.Series,
+    node_rets: pd.Series,
+    lag: int,
+    corr: float,
+    test_days: int = OOS_TEST_DAYS,
+    min_events: int = 8,
+) -> Tuple[Optional[float], int]:
+    """Hit rate on the most recent test_days (held out from lag fitting)."""
+    fr = focus_rets.squeeze() if hasattr(focus_rets, "squeeze") else focus_rets
+    nr = node_rets.squeeze() if hasattr(node_rets, "squeeze") else node_rets
+    if len(fr) < test_days + 15:
+        return None, 0
+    test_fr = fr.iloc[-test_days:]
+    test_nr = nr.reindex(test_fr.index).dropna()
+    test_fr = test_fr.reindex(test_nr.index).dropna()
+    if len(test_fr) < 10:
+        return None, 0
+    return lead_lag_hit_rate(test_fr, test_nr, lag, corr, min_events=min_events)
+
+
 def correlation_regime_break(
     focus_rets: pd.Series,
     node_rets: pd.Series,

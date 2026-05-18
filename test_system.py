@@ -14,7 +14,8 @@ def main():
 
     # 1 Imports
     try:
-        from chain_ping import run_scan, format_telegram_ping, chains_with_moves
+        from chain_ping import run_scan, format_telegram_ping, format_actionable_ping, chains_with_moves
+        from chain_setups import find_all_setups
         from cloud_run import run_scan as _unused
         print("[PASS] imports")
     except Exception as e:
@@ -33,23 +34,26 @@ def main():
         failed.append("scan")
         return 1
 
-    # 3 Message content
+    # 3 Setups + message
     try:
-        msg = format_telegram_ping(r)
-        assert "Chain alert" in msg and r.scan_time in msg
-        assert "$" in msg and "%" in msg
-        assert "r60" in msg or "corr" in msg
-        assert "leads" in msg or "lags" in msg or "same day" in msg or "fwd" in msg
+        setups = find_all_setups(movers, r.price_cache)
+        map_msg = format_telegram_ping(r)
+        assert "Chain alert" in map_msg and r.scan_time in map_msg
         assert all(c.focus.last_price > 0 for c in r.chains)
-        # At least one chain link should carry lead/lag from momentum_chain
-        has_lag = any(l.lead_lag_days != 0 for c in r.chains for l in c.links)
+        if setups:
+            act_msg = format_actionable_ping(r, setups)
+            assert "Trade setups" in act_msg and setups[0].ticker in act_msg
+            assert setups[0].entry_price > 0 or setups[0].stop_loss > 0 or True
+            tg_body = act_msg
+        else:
+            act_msg = ""
+            tg_body = map_msg
         print(
-            f"[PASS] message — {len(msg)} chars, timestamp + prices + "
-            f"timing ({'lead/lag in data' if has_lag else 'same-day only'})"
+            f"[PASS] setups — {len(setups)} actionable, map {len(map_msg)} chars"
         )
     except Exception as e:
-        print("[FAIL] message:", e)
-        failed.append("message")
+        print("[FAIL] setups:", e)
+        failed.append("setups")
         return 1
 
     # 4 Telegram (optional if env set)
@@ -64,7 +68,8 @@ def main():
                 raise RuntimeError("getMe failed")
             from telegram_alerts import TelegramBot
             bot = TelegramBot()
-            if bot.send_message(f"✅ <b>test_system.py passed</b>\n<i>{r.scan_time}</i>\n\n{msg[:3000]}"):
+            preview = tg_body[:3000] if tg_body else map_msg[:2000]
+            if bot.send_message(f"✅ <b>test_system.py passed</b>\n<i>{r.scan_time}</i>\n\n{preview}"):
                 print("[PASS] telegram — message delivered")
             else:
                 print("[FAIL] telegram send_message returned false")

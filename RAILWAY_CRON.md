@@ -105,3 +105,38 @@ curl -v "https://YOUR-RAILWAY-URL/run?token=YOUR_CRON_SECRET"
 
 - `/health` should return 200 and `{"ok": true}` with no token.
 - `/run?token=...` with the right token starts the scan (may take 2–5 min to respond).
+
+---
+
+## Trade tracking (proposed trades)
+
+Every scan logs to **`data/trade_setups.jsonl`** (proposed trades + scan heartbeats). Outcomes (1d/5d/10d, stop/target hit) update automatically after each scan.
+
+### Persist logs on Railway (required for long-term tracking)
+
+Railway’s disk is **ephemeral** by default — logs are lost on redeploy unless you add a volume:
+
+1. Railway → your service → **Volumes** → Add volume (e.g. 1 GB), mount path **`/data`**
+2. Variables → **`DATA_DIR`** = `/data`
+3. Redeploy
+
+Local runs use `./data` automatically.
+
+### Second cron: daily outcome refresh (optional)
+
+Add a lightweight cron-job (once daily, e.g. 22:00 UTC Mon–Fri):
+
+```text
+https://YOUR-RAILWAY-URL/run/outcomes?token=YOUR_CRON_SECRET
+```
+
+Timeout 2 minutes is enough. Refreshes forward returns and writes `TRACKING_REPORT.md` on the server.
+
+### Review performance locally
+
+```bash
+python trade_tracker.py --fill
+python trade_tracker.py --report   # → TRACKING_REPORT.md + data/trade_tracker.csv
+```
+
+Open **`data/trade_tracker.csv`** in Excel to validate every proposed trade over time.

@@ -17,6 +17,19 @@ Finds the most volatile stocks, then tells you on Telegram: **what moved**, at *
 
 See `RAILWAY_CRON.md` for details.
 
+**Persist trade history on Railway:** mount a volume at `/data` and set `DATA_DIR=/data` (see `RAILWAY_CRON.md`).
+
+## Trade tracking
+
+Every proposed trade is logged to `data/trade_setups.jsonl` with entry, stop, target, and forward outcomes.
+
+```bash
+python trade_tracker.py --report   # TRACKING_REPORT.md + data/trade_tracker.csv
+python trade_tracker.py --fill      # refresh 1d/5d/10d returns + stop/target hits
+```
+
+Default mode is **actionable** — Telegram only when a setup passes filters (`ALERT_MODE=actionable`). All setups are still logged even on quiet scans.
+
 ## Example Telegram message
 
 ```text

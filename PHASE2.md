@@ -25,12 +25,25 @@ MIN_PEER_CORR=0.55       # chain_ping peer display
 MIN_MACRO_CORR=0.55      # chain_ping macro display
 ```
 
+## Full backtest export (verify)
+
+```bash
+python lead_lag_backtest.py --period 6mo
+```
+
+Writes:
+
+- **`BACKTEST_LEAD_LAG.md`** — all 419 pairs + 82 filtered (human-readable tables)
+- **`data/BACKTEST_LEAD_LAG.csv`** — same data for Excel/scripts
+
+Columns: `corr`, `pvalue`, `lag_days`, in-sample hit %, **OOS hit %** (last 40 days), `passes_alert_filter`, date range.
+
 ## Commands
 
 ```bash
-# Forward hit rates (validates predictions)
+# Regenerate full backtest files
 python lead_lag_backtest.py
-python lead_lag_backtest.py --tickers RKLB,DDOG,SMCI
+python lead_lag_backtest.py --focus RKLB,DDOG,SMCI --period 1y
 
 # Log + fill outcomes on past alerts
 python signal_log.py
@@ -60,9 +73,21 @@ DDOG:
 
 Links below **|r| 0.55** no longer appear in Telegram; backtest CLI still shows weaker pairs for research.
 
+## Actionable mode (live)
+
+Default `ALERT_MODE=actionable`:
+
+- Telegram **only when** catch-up / divergence / fade setups pass OOS + regime gates
+- Each setup includes **entry / stop / target / size** (ATR from `trade_levels.py`)
+- Logged to **`data/trade_setups.jsonl`** — run `python signal_log.py` to fill outcomes
+
+```bash
+ALERT_MODE=full python chain_ping.py   # old relationship map anytime
+ALERT_MODE=actionable python chain_ping.py
+```
+
 ## Still open (phase 3)
 
-- Hard **entry / exit / stop** rules wired to broker or paper account
-- **Portfolio-level** cap on correlated macro exposure
-- Walk-forward **out-of-sample** report automated weekly
-- Full **position sizing** (ATR-based exists in `trade_levels.py`, not wired to chain path)
+- Broker / paper execution
+- Portfolio cap on correlated macro exposure
+- P&L backtest on setup rules (not just direction hit rate)

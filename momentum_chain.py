@@ -156,6 +156,8 @@ class ChainLink:
     sample_n: int = 0
     lag_hit_rate: Optional[float] = None
     lag_hit_n: int = 0
+    lag_hit_rate_oos: Optional[float] = None
+    lag_hit_n_oos: int = 0
     corr_significant: bool = False
     regime_break: bool = False
 
@@ -185,6 +187,7 @@ class MomentumScanResult:
     universe_size: int
     top_volatile: List[VolatilePick]
     chains: List[MomentumChain]
+    price_cache: Dict[str, pd.DataFrame] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -515,6 +518,7 @@ def build_chain(
             corr_significant,
             correlation_regime_break,
             lead_lag_hit_rate,
+            oos_hit_rate,
         )
 
         aligned = aligned_returns(focus_rets, node_rets)
@@ -525,8 +529,11 @@ def build_chain(
         if n >= 20 and pval > MIN_CORR_PVALUE:
             continue
 
+        full_fr = daily_returns(focus_df["Close"])
+        full_nr = daily_returns(df["Close"])
         hit_pct, hit_n = lead_lag_hit_rate(focus_rets, node_rets, lag, corr)
-        regime_break = correlation_regime_break(focus_rets, node_rets)
+        oos_pct, oos_n = oos_hit_rate(full_fr, full_nr, lag, corr)
+        regime_break = correlation_regime_break(full_fr, full_nr)
 
         c = df["Close"]
         m1 = (c.iloc[-1] / c.iloc[-2] - 1) * 100 if len(c) >= 2 else 0.0
@@ -561,6 +568,8 @@ def build_chain(
                 sample_n=n,
                 lag_hit_rate=hit_pct,
                 lag_hit_n=hit_n,
+                lag_hit_rate_oos=oos_pct,
+                lag_hit_n_oos=oos_n,
                 corr_significant=corr_significant(corr, n),
                 regime_break=regime_break,
             )
@@ -686,6 +695,7 @@ class MomentumChainFinder:
             universe_size=len(tickers),
             top_volatile=top,
             chains=chains,
+            price_cache=all_data,
         )
 
 
