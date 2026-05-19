@@ -1,9 +1,9 @@
 name: Daily pipeline scan
 
-# 12:00 UTC = 12:00 GMT (winter). Backup if Railway cron is skipped.
+# 21:00 UTC ≈ US cash close. Backup if Railway cron is skipped.
 on:
   schedule:
-    - cron: "0 12 * * *"
+    - cron: "0 21 * * *"
   workflow_dispatch:
 
 jobs:

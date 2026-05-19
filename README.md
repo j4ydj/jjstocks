@@ -11,7 +11,7 @@ Map-based pipeline: volatile stocks → correlation chains → **predicted move,
    - `CRON_SECRET` (random string)
    - `DATA_DIR=/data` with a volume mounted at `/data` (persists trades across deploys)
 3. **GitHub auto-deploy** — push to `main` redeploys (repo connected on Railway).
-4. **Daily scan** — `jjstocks-daily-cron` runs at **12:00 GMT** (UTC). Optional backup: GitHub Actions (see `scripts/setup_github_secret.sh`).
+4. **Daily scan** — `jjstocks-daily-cron` at **21:00 UTC** (post US close). v2 filters + 90% pair playbook. Optional GitHub backup: `scripts/setup_github_secret.sh`.
 
 See `RAILWAY_DEPLOY.md` for URLs and manual triggers.
 

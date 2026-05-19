@@ -7,7 +7,7 @@
 | Service | Role | Deploy |
 |---------|------|--------|
 | **jjstocks** | HTTP server (`trigger_server.py`) — health, manual `/run` | GitHub `main` → auto-deploy |
-| **jjstocks-daily-cron** | Daily scan at **12:00 UTC (GMT)** | GitHub `main` → auto-deploy |
+| **jjstocks-daily-cron** | Daily scan at **21:00 UTC** (after US close) | GitHub `main` → auto-deploy |
 
 ## Public URL (web service)
 
@@ -21,9 +21,9 @@
 
 `CRON_SECRET`: Railway → **Variables** (both services) or local `.railway_cron_secret`.
 
-## Daily schedule (12:00 GMT)
+## Daily schedule (21:00 UTC)
 
-**Primary:** Railway cron on `jjstocks-daily-cron` — crontab `0 12 * * *` (UTC).
+**Primary:** Railway cron on `jjstocks-daily-cron` — crontab `0 21 * * *` (UTC, ~US equity close).
 
 Runs `scripts/cron_trigger.py`, which calls the web service `/run` then `/run/outcomes`.
 

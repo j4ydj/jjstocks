@@ -5,7 +5,7 @@
   },
   "deploy": {
     "startCommand": "python3 scripts/cron_trigger.py",
-    "cronSchedule": "0 12 * * *",
+    "cronSchedule": "0 21 * * *",
     "restartPolicyType": "ON_FAILURE"
   }
 }

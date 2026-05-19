@@ -65,8 +65,8 @@ def calculate_levels(
         reward_pct = (entry - target) / entry * 100
 
     risk_reward = reward_pct / risk_pct if risk_pct > 0 else 0
-    portfolio_risk_pct = {3: 1.5, 4: 2.0, 5: 2.5}.get(conviction, 2.0)
-    position_pct = min(30.0, (portfolio_risk_pct / risk_pct) * 100) if risk_pct > 0 else 2.0
+    portfolio_risk_pct = {3: 1.0, 4: 1.25, 5: 1.5}.get(conviction, 1.25)
+    position_pct = min(20.0, (portfolio_risk_pct / risk_pct) * 100) if risk_pct > 0 else 1.5
 
     return TradeLevels(
         ticker=ticker,

@@ -13,7 +13,10 @@ from typing import List, Tuple
 
 from correlation_map import _bulk_download, _returns_matrix
 from momentum_chain import MomentumChainFinder
+from pair_playbook import PairPlaybook
+from pipeline_config import MAX_TRADES_PER_SCAN, TARGET_WIN_RATE
 from pipeline_core import ChainPrediction, MovementSnapshot, generate_predictions
+from pipeline_filters import select_portfolio
 from trade_tracker import SETUP_FILE, update_outcomes, write_report as write_tracker_report
 
 logger = logging.getLogger(__name__)
@@ -57,7 +60,7 @@ def format_daily_message(
             f"  Path: {_esc(p.chain_path)}",
             f"  Leader <b>{_esc(p.leader)}</b> {p.leader_move_pct:+.1f}% → "
             f"predict <b>{p.predicted_move_pct:+.1f}%</b> by <b>{_esc(p.expected_by_date)}</b> "
-            f"({p.expected_days}d, r={p.corr:+.2f}, hit {hit_s})",
+            f"({p.expected_days}d, r={p.corr:+.2f}, z={p.spread_z:+.1f}, hit {hit_s})",
             f"  Entry ${p.entry_price:.2f} · Stop ${p.stop_loss:.2f} · "
             f"Target ${p.target_price:.2f} · Size ~{p.position_pct:.0f}%",
         ])
@@ -171,7 +174,20 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     if not focus_list:
         focus_list = list(rets.columns[:12])
 
-    movers, predictions = generate_predictions(data, rets, focus_list, scan_time)
+    movers, raw_preds = generate_predictions(
+        data, rets, focus_list, scan_time, apply_playbook=False,
+    )
+    predictions, portfolio_blocked = select_portfolio(raw_preds)
+    if not raw_preds and not predictions:
+        pb = PairPlaybook()
+        pb.load_static()
+        logger.info(
+            "No trades: v2 filters or playbook (target %.0f%%, %d pairs loaded)",
+            TARGET_WIN_RATE,
+            len(pb._static_allowed),
+        )
+    elif portfolio_blocked:
+        logger.info("Portfolio cap blocked: %s", portfolio_blocked[:5])
 
     message = format_daily_message(scan_time, movers, predictions)
     plain = format_plain(message)
