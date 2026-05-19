@@ -40,6 +40,8 @@ market_scan_results.json
 signals.json
 edge_roadmap.json
 data/
+.railway/
+.railway_cron_secret
 
 # State
 auto_runner_state.json
