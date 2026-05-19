@@ -1,0 +1,39 @@
+name: Daily pipeline scan
+
+# 12:00 UTC = 12:00 GMT (winter). Backup if Railway cron is skipped.
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Run scan on Railway
+        env:
+          RAILWAY_CRON_SECRET: ${{ secrets.RAILWAY_CRON_SECRET }}
+        run: |
+          if [ -z "$RAILWAY_CRON_SECRET" ]; then
+            echo "Skip: RAILWAY_CRON_SECRET not set in GitHub repo secrets"
+            exit 0
+          fi
+          BASE="https://jjstocks-production.up.railway.app"
+          code=$(curl -sS -o /tmp/scan.json -w "%{http_code}" --max-time 600 \
+            "${BASE}/run?token=${RAILWAY_CRON_SECRET}")
+          cat /tmp/scan.json
+          test "$code" = "200"
+
+  outcomes:
+    needs: scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refresh trade outcomes
+        env:
+          RAILWAY_CRON_SECRET: ${{ secrets.RAILWAY_CRON_SECRET }}
+        run: |
+          if [ -z "$RAILWAY_CRON_SECRET" ]; then exit 0; fi
+          curl -sS --max-time 120 \
+            "https://jjstocks-production.up.railway.app/run/outcomes?token=${RAILWAY_CRON_SECRET}"

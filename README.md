@@ -10,14 +10,10 @@ Map-based pipeline: volatile stocks → correlation chains → **predicted move,
    - `TELEGRAM_CHAT_ID`
    - `CRON_SECRET` (random string)
    - `DATA_DIR=/data` with a volume mounted at `/data` (persists trades across deploys)
-3. Cron URLs ([cron-job.org](https://cron-job.org), **5 minute timeout**):
-   ```text
-   https://YOUR-APP.up.railway.app/run?token=YOUR_CRON_SECRET
-   https://YOUR-APP.up.railway.app/run/outcomes?token=YOUR_CRON_SECRET
-   ```
-   Scan: hourly on weekdays. Outcomes: once daily.
+3. **GitHub auto-deploy** — push to `main` redeploys (repo connected on Railway).
+4. **Daily scan** — `jjstocks-daily-cron` runs at **12:00 GMT** (UTC). Optional backup: GitHub Actions (see `scripts/setup_github_secret.sh`).
 
-See `RAILWAY_CRON.md` for details.
+See `RAILWAY_DEPLOY.md` for URLs and manual triggers.
 
 ## Trade tracking
 
