@@ -51,17 +51,64 @@ def load_all() -> List[Dict[str, Any]]:
 
 
 def _dedupe_trades(trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Keep latest row per (scan_time, ticker, direction, setup_type)."""
+    """Keep latest row per (ticker, direction, setup_type, leader)."""
     seen: Dict[tuple, Dict[str, Any]] = {}
     for t in sorted(trades, key=lambda x: x.get("logged_at", "")):
         key = (
-            (t.get("scan_time") or "")[:16],
             t.get("ticker", "").upper(),
             t.get("direction", ""),
             t.get("setup_type", ""),
+            (t.get("leader") or "").upper(),
         )
-        seen[key] = t
+        prev = seen.get(key)
+        if prev is None:
+            seen[key] = t
+            continue
+        if t.get("trade_id") and not prev.get("trade_id"):
+            seen[key] = t
+        elif t.get("outcomes_updated", "") >= prev.get("outcomes_updated", ""):
+            seen[key] = t
     return list(seen.values())
+
+
+def dedupe_log() -> tuple:
+    """Compact trade_setups.jsonl: unique trades + one heartbeat per scan_id."""
+    records = load_all()
+    if not records:
+        return 0, 0
+    heartbeats: Dict[str, Dict[str, Any]] = {}
+    trade_map: Dict[tuple, Dict[str, Any]] = {}
+    for r in records:
+        if r.get("setup_type") == "scan_heartbeat":
+            sid = r.get("scan_id") or (r.get("scan_time") or "")[:16]
+            prev = heartbeats.get(sid)
+            if prev is None or r.get("logged_at", "") >= prev.get("logged_at", ""):
+                heartbeats[sid] = r
+            continue
+        if not r.get("ticker"):
+            continue
+        key = (
+            r.get("ticker", "").upper(),
+            r.get("direction", ""),
+            r.get("setup_type", ""),
+            (r.get("leader") or "").upper(),
+        )
+        prev = trade_map.get(key)
+        if prev is None:
+            trade_map[key] = r
+            continue
+        if r.get("trade_id") and not prev.get("trade_id"):
+            trade_map[key] = r
+        elif r.get("logged_at", "") >= prev.get("logged_at", ""):
+            trade_map[key] = r
+    compact = sorted(
+        list(trade_map.values()) + list(heartbeats.values()),
+        key=lambda x: x.get("logged_at", ""),
+    )
+    before, after = len(records), len(compact)
+    save_all(compact)
+    export_csv(compact)
+    return before, after
 
 
 def save_all(records: List[Dict[str, Any]]) -> None:
@@ -404,11 +451,15 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Track proposed chain trades")
     p.add_argument("--fill", action="store_true", help="Update outcomes from market data")
     p.add_argument("--report", action="store_true", help="Write TRACKING_REPORT.md + CSV")
+    p.add_argument("--dedupe", action="store_true", help="Remove duplicate rows in trade_setups.jsonl")
     args = p.parse_args()
+    if args.dedupe:
+        before, after = dedupe_log()
+        print(f"Deduped {SETUP_FILE}: {before} → {after} rows")
     if args.fill:
         n = update_outcomes()
         print(f"Updated {n} trade(s) → {SETUP_FILE}")
-    if args.report or not (args.fill):
+    if args.report or not (args.fill or args.dedupe):
         path = write_report()
         print(f"Report → {path}")
         export_csv()

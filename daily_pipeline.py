@@ -110,7 +110,7 @@ def log_predictions(
 
 
 def write_scoreboard() -> str:
-    from trade_tracker import load_all, _dedupe_trades, _stats as tracker_stats
+    from trade_tracker import load_all, _dedupe_trades
 
     records = load_all()
     trades = _dedupe_trades([
