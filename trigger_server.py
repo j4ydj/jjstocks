@@ -75,8 +75,17 @@ class TriggerHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    try:
+        from telegram_commands import start_telegram_command_listener
+        start_telegram_command_listener()
+    except Exception as e:
+        logger.warning("Telegram command listener not started: %s", e)
     server = HTTPServer(("0.0.0.0", PORT), TriggerHandler)
-    logger.info("Trigger server listening on 0.0.0.0:%s (hit /run?token=YOUR_CRON_SECRET)", PORT)
+    logger.info(
+        "Listening on 0.0.0.0:%s — HTTP /run?token=… | Telegram: %s",
+        PORT,
+        os.getenv("TELEGRAM_RUN_COMMAND", "/run"),
+    )
     server.serve_forever()
 
 

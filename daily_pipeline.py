@@ -209,7 +209,13 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     write_scoreboard()
     write_tracker_report()
 
-    logger.info("Pipeline done: %d predictions, telegram=%s", len(predictions), sent)
+    logger.info(
+        "Pipeline done: universe=%s focus=%d predictions=%d telegram=%s",
+        getattr(scan_result, "universe_size", "?"),
+        len(focus_list),
+        len(predictions),
+        sent,
+    )
     return True, plain
 
 

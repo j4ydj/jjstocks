@@ -668,7 +668,18 @@ class MomentumChainFinder:
         logger.info("Ranking volatility across %d tickers...", len(tickers))
 
         all_data = _bulk_download(tickers)
+        min_bars = VOL_LOOKBACK_DAYS + 5
+        with_data = sum(
+            1 for t in tickers
+            if t in all_data and all_data[t] is not None and len(all_data[t]) >= min_bars
+        )
         top, focus_data = rank_by_volatility(tickers, self.top_n, prefetched=all_data)
+        logger.info(
+            "Universe: %d listed → %d with 6mo prices → ranked all → deep chain on top %d only",
+            len(tickers),
+            with_data,
+            len(top),
+        )
 
         # Download macro + thematic nodes not in universe batch
         extra_syms: List[str] = list(MACRO_NODES.keys())

@@ -33,4 +33,15 @@ Outputs: `BACKTEST_PIPELINE_RESULTS.md`, `data/BACKTEST_PIPELINE_TRADES_V2.csv`,
 
 Railway runs `daily_pipeline.py` → Telegram + `data/trade_setups.jsonl`.
 
+**Manual trigger:** send `/run` in Telegram (only your `TELEGRAM_CHAT_ID`).
+
+## What the scan actually does (500 names)
+
+1. Loads **~518** symbols from `sp500_symbols.txt` + extras.
+2. **One batch** Yahoo download (6 months) — scores **every** symbol that returned data (~470–490).
+3. Picks **top 15** volatile → builds chains (corr / lead-lag) on those only.
+4. Pipeline predictions on **top 12** focus names — not 518×518 daily.
+
+Typical runtime **1–3 minutes**, not a full correlation map of the entire market.
+
 If no trades: filters are strict or playbook empty — normal on quiet days.
