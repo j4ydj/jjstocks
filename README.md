@@ -14,6 +14,16 @@ Map-based pipeline: volatile stocks → correlation chains → **predicted move,
 4. **Daily scan** — `jjstocks-daily-cron` at **21:00 UTC** (post US close).
 5. **Telegram on demand** — send **`/run`** to your bot (same scan as cron).
 
+### Global indexes (default)
+
+Set `SCAN_UNIVERSE=global` (default) to scan **~18 benchmarks** (US, Europe, Asia, EM, etc.) plus **~1,000+** constituents across `data/indexes/`. The pipeline:
+
+- Ranks **all** symbols with price data (batched Yahoo downloads)
+- Builds **cross-index ETF chains** (SPY → EFA → EWJ → …) in every alert
+- Runs deep stock chains on top volatile names globally
+
+US-only: `SCAN_UNIVERSE=us`. Tune batch size: `YF_BATCH_SIZE=100`, `MOMENTUM_TOP_N=25`.
+
 Optional GitHub backup: `scripts/setup_github_secret.sh`.
 
 See `RAILWAY_DEPLOY.md` for URLs and manual triggers.

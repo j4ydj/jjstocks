@@ -42,6 +42,8 @@ CI workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs import c
 ## Variables
 
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — on **jjstocks** (web)
+- `SCAN_UNIVERSE=global` — multi-index world scan (default); use `us` for S&P-only
+- `YF_BATCH_SIZE=100` — Yahoo batch size for ~1k+ symbols (expect **5–15 min** per scan)
 - `CRON_SECRET` — on **jjstocks** and **jjstocks-daily-cron**
 - `DATA_DIR=/data` — volume on **jjstocks** only
 

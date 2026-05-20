@@ -119,11 +119,13 @@ def _edges_from_rets(
     focus: str,
     end_idx: int,
     min_corr: float,
+    targets: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     if focus not in rets.columns or end_idx < CORR_WINDOW + 5:
         return []
+    cols = targets if targets is not None else list(rets.columns)
     edges = []
-    for target in rets.columns:
+    for target in cols:
         if target == focus:
             continue
         best_c, best_h = 0.0, CORR_WINDOW
@@ -238,7 +240,17 @@ def generate_predictions(
         if end_idx >= len(fdf):
             continue
         f_move = _pct(fdf["Close"], end_idx)
-        edges_raw = _edges_from_rets(rets, focus, end_idx, MIN_CORR)
+        try:
+            from global_indexes import correlation_candidates, is_global_mode
+
+            targets = (
+                correlation_candidates(focus, list(rets.columns))
+                if is_global_mode()
+                else None
+            )
+        except ImportError:
+            targets = None
+        edges_raw = _edges_from_rets(rets, focus, end_idx, MIN_CORR, targets=targets)
         if not edges_raw:
             continue
 

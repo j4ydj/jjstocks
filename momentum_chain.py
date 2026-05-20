@@ -48,6 +48,16 @@ MACRO_NODES = {
     "ARKK": "Innovation / speculative growth",
 }
 
+try:
+    from global_indexes import GLOBAL_INDEX_ETFS, is_global_mode
+
+    if is_global_mode():
+        for sym, desc in GLOBAL_INDEX_ETFS.items():
+            if sym not in MACRO_NODES:
+                MACRO_NODES[sym] = desc
+except ImportError:
+    pass
+
 SECTOR_TO_ETF = {
     "technology": "XLK",
     "communication services": "XLC",
@@ -321,15 +331,23 @@ def rank_by_volatility(
     return top, focus_data
 
 
-def _bulk_download(tickers: List[str], extra: Optional[List[str]] = None) -> Dict[str, pd.DataFrame]:
-    syms = list(dict.fromkeys((tickers or []) + (extra or [])))
+YF_BATCH_SIZE = int(os.getenv("YF_BATCH_SIZE", "100"))
+YF_BATCH_SLEEP = float(os.getenv("YF_BATCH_SLEEP", "0.35"))
+
+
+def _bulk_download_chunk(
+    syms: List[str],
+    period: str = "6mo",
+) -> Dict[str, pd.DataFrame]:
     out: Dict[str, pd.DataFrame] = {}
     if not syms:
         return out
     try:
+        import time
+
         raw = yf.download(
             syms,
-            period="6mo",
+            period=period,
             group_by="ticker",
             progress=False,
             threads=True,
@@ -345,7 +363,32 @@ def _bulk_download(tickers: List[str], extra: Optional[List[str]] = None) -> Dic
         elif len(syms) == 1 and "Close" in raw.columns:
             out[syms[0]] = _normalize_index(raw.copy())
     except Exception as e:
-        logger.warning("Bulk download failed: %s", e)
+        logger.warning("Bulk download chunk failed (%d syms): %s", len(syms), e)
+    return out
+
+
+def _bulk_download(
+    tickers: List[str],
+    extra: Optional[List[str]] = None,
+    period: str = "6mo",
+) -> Dict[str, pd.DataFrame]:
+    syms = list(dict.fromkeys((tickers or []) + (extra or [])))
+    if not syms:
+        return {}
+    if len(syms) <= YF_BATCH_SIZE:
+        return _bulk_download_chunk(syms, period=period)
+
+    import time
+
+    out: Dict[str, pd.DataFrame] = {}
+    n_batches = (len(syms) + YF_BATCH_SIZE - 1) // YF_BATCH_SIZE
+    logger.info("Bulk download %d symbols in %d batches (period=%s)", len(syms), n_batches, period)
+    for i in range(0, len(syms), YF_BATCH_SIZE):
+        chunk = syms[i : i + YF_BATCH_SIZE]
+        out.update(_bulk_download_chunk(chunk, period=period))
+        if i + YF_BATCH_SIZE < len(syms) and YF_BATCH_SLEEP > 0:
+            time.sleep(YF_BATCH_SLEEP)
+    logger.info("Bulk download done: %d/%d symbols with bars", len(out), len(syms))
     return out
 
 

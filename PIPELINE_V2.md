@@ -37,7 +37,9 @@ Railway runs `daily_pipeline.py` → Telegram + `data/trade_setups.jsonl`.
 
 ## What the scan actually does (500 names)
 
-1. Loads **~518** symbols from `sp500_symbols.txt` + extras.
+1. Loads universe from `SCAN_UNIVERSE`:
+   - **`global`** (default): ~18 index benchmarks + constituents in `data/indexes/` (~1k+ tickers, batched download)
+   - **`us`**: ~518 from `sp500_symbols.txt` + extras
 2. **One batch** Yahoo download (6 months) — scores **every** symbol that returned data (~470–490).
 3. Picks **top 15** volatile → builds chains (corr / lead-lag) on those only.
 4. Pipeline predictions on **top 12** focus names — not 518×518 daily.

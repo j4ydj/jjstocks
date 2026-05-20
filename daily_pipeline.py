@@ -9,7 +9,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from correlation_map import _bulk_download, _returns_matrix
 from momentum_chain import MomentumChainFinder
@@ -32,6 +32,7 @@ def format_daily_message(
     scan_time: str,
     movers: List[MovementSnapshot],
     predictions: List[ChainPrediction],
+    global_index_chains: Optional[List] = None,
 ) -> str:
     lines = [
         "<b>Pipeline alert</b>",
@@ -44,6 +45,13 @@ def format_daily_message(
             f"  • <b>{_esc(m.ticker)}</b> ${m.price:.2f}  "
             f"<b>{m.move_1d_pct:+.1f}%</b> today  ({m.move_5d_pct:+.1f}% / 5d)"
         )
+
+    if global_index_chains:
+        from global_index_chains import format_global_chains_html
+
+        block = format_global_chains_html(global_index_chains, scan_time)
+        if block:
+            lines.append(block)
 
     if not predictions:
         lines.append("")
@@ -158,7 +166,12 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     """Full automated run."""
     logger.info("Pipeline started %s", datetime.now().isoformat())
 
-    finder = MomentumChainFinder(top_n=15)
+    import os
+    from global_indexes import is_global_mode
+
+    top_n = int(os.getenv("MOMENTUM_TOP_N", "25" if is_global_mode() else "15"))
+    focus_n = int(os.getenv("PIPELINE_FOCUS_N", "18" if is_global_mode() else "12"))
+    finder = MomentumChainFinder(top_n=top_n)
     scan_result = finder.scan()
     scan_time = scan_result.scan_time
 
@@ -170,7 +183,13 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
         data = _bulk_download(load_scan_universe()[:300], period="2y")
 
     rets = _returns_matrix(data)
-    focus_list = [p.ticker for p in scan_result.top_volatile[:12]]
+    focus_list = [p.ticker for p in scan_result.top_volatile[:focus_n]]
+
+    global_chains = []
+    if is_global_mode():
+        from global_index_chains import scan_global_index_chains
+
+        global_chains = scan_global_index_chains()
     if not focus_list:
         focus_list = list(rets.columns[:12])
 
@@ -189,7 +208,7 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     elif portfolio_blocked:
         logger.info("Portfolio cap blocked: %s", portfolio_blocked[:5])
 
-    message = format_daily_message(scan_time, movers, predictions)
+    message = format_daily_message(scan_time, movers, predictions, global_chains)
     plain = format_plain(message)
 
     os.makedirs(os.path.dirname(DAILY_OUTPUT) or ".", exist_ok=True)
