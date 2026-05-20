@@ -1,6 +1,6 @@
 # Trade tracking report
 
-> Generated: **2026-05-19 12:16:23**
+> Generated: **2026-05-20 11:46:47**
 > Log file: `/Users/home/stocks/data/trade_setups.jsonl`
 > CSV: `/Users/home/stocks/data/trade_tracker.csv`
 
@@ -8,7 +8,7 @@
 
 | Metric | Value |
 |--------|-------|
-| Scans logged | 4 |
+| Scans logged | 5 |
 | Proposed trades | 3 |
 | Open | 3 |
 | Closed (10d or stop/target) | 0 |
