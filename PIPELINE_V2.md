@@ -37,6 +37,8 @@ Railway runs `daily_pipeline.py` → Telegram + `data/trade_setups.jsonl`.
 
 ## What the scan actually does (500 names)
 
+**Critical:** live scans use 6mo prices (~126 bars). `PIPELINE_MIN_BARS=60` (not 130) or the returns matrix is empty and correlations show as $0 / none.
+
 1. Loads universe from `SCAN_UNIVERSE`:
    - **`global`** (default): ~18 index benchmarks + constituents in `data/indexes/` (~1k+ tickers, batched download)
    - **`us`**: ~518 from `sp500_symbols.txt` + extras

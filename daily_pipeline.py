@@ -15,7 +15,22 @@ from correlation_map import _bulk_download, _returns_matrix
 from momentum_chain import MomentumChainFinder
 from pair_playbook import PairPlaybook
 from pipeline_config import MAX_TRADES_PER_SCAN, TARGET_WIN_RATE
-from pipeline_core import ChainPrediction, MovementSnapshot, generate_predictions
+from pipeline_core import (
+    ChainPrediction,
+    MovementCorrelation,
+    MovementSnapshot,
+    discover_movement_correlations,
+    generate_predictions,
+)
+from returns_align import build_returns_matrix
+from correlation_trades import (
+    build_correlation_trades,
+    format_trades_html,
+    format_trades_plain,
+    log_correlation_trades,
+    update_correlation_outcomes,
+    write_report as write_corr_report,
+)
 from pipeline_filters import select_portfolio
 from trade_tracker import SETUP_FILE, update_outcomes, write_report as write_tracker_report
 
@@ -33,6 +48,8 @@ def format_daily_message(
     movers: List[MovementSnapshot],
     predictions: List[ChainPrediction],
     global_index_chains: Optional[List] = None,
+    movement_correlations: Optional[List[MovementCorrelation]] = None,
+    correlation_trades: Optional[list] = None,
 ) -> str:
     lines = [
         "<b>Pipeline alert</b>",
@@ -53,12 +70,32 @@ def format_daily_message(
         if block:
             lines.append(block)
 
-    if not predictions:
+    if movement_correlations:
+        lines.extend(["", "<b>Correlated movements</b> (aligned global returns)"])
+        for c in movement_correlations[:20]:
+            hit_s = f", hit {c.hit_rate:.0f}%" if c.hit_rate is not None else ""
+            lag_s = f", lag {c.lag_days}d" if c.lag_days else ""
+            lines.append(
+                f"  • <b>{_esc(c.leader)}</b> {c.leader_move_1d:+.1f}% ↔ "
+                f"<b>{_esc(c.focus)}</b> {c.focus_move_1d:+.1f}%  "
+                f"(r={c.corr:+.2f}{lag_s}{hit_s}, {c.layer})"
+            )
+
+    if correlation_trades:
+        lines.extend(format_trades_html(correlation_trades))
+
+    if not predictions and not correlation_trades:
         lines.append("")
-        lines.append("<i>No chain predictions passed filters this scan.</i>")
+        if movement_correlations:
+            lines.append("<i>No |r|≥0.60 trades this scan (see correlations above).</i>")
+        else:
+            lines.append("<i>No correlated movements or trades found this scan.</i>")
         return "\n".join(lines)
 
-    lines.extend(["", "<b>Chain predictions &amp; proposed trades</b>"])
+    if not predictions:
+        return "\n".join(lines)
+
+    lines.extend(["", "<b>Strict v2 trades</b> (optional layer)"])
     for p in predictions[:6]:
         emoji = "📈" if p.direction == "BUY" else "📉"
         hit_s = f"{p.hit_rate:.0f}%" if p.hit_rate is not None else "—"
@@ -169,8 +206,8 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     import os
     from global_indexes import is_global_mode
 
-    top_n = int(os.getenv("MOMENTUM_TOP_N", "25" if is_global_mode() else "15"))
-    focus_n = int(os.getenv("PIPELINE_FOCUS_N", "18" if is_global_mode() else "12"))
+    top_n = int(os.getenv("MOMENTUM_TOP_N", "30" if is_global_mode() else "30"))
+    focus_n = int(os.getenv("PIPELINE_FOCUS_N", "24" if is_global_mode() else "24"))
     finder = MomentumChainFinder(top_n=top_n)
     scan_result = finder.scan()
     scan_time = scan_result.scan_time
@@ -182,8 +219,18 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
 
         data = _bulk_download(load_scan_universe()[:300], period="2y")
 
-    rets = _returns_matrix(data)
+    rets = build_returns_matrix(data)
+    if rets.empty:
+        logger.error("Returns matrix empty — check PIPELINE_MIN_BARS and download period")
+    else:
+        logger.info("Returns matrix: %d days × %d symbols", len(rets), len(rets.columns))
+
     focus_list = [p.ticker for p in scan_result.top_volatile[:focus_n]]
+    movement_correlations = discover_movement_correlations(data, rets, focus_list)
+    logger.info("Movement correlations discovered: %d", len(movement_correlations))
+
+    corr_trades = build_correlation_trades(movement_correlations, data, scan_time)
+    logger.info("Correlation trades (|r|>=%.2f): %d", 0.60, len(corr_trades))
 
     global_chains = []
     if is_global_mode():
@@ -208,8 +255,16 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     elif portfolio_blocked:
         logger.info("Portfolio cap blocked: %s", portfolio_blocked[:5])
 
-    message = format_daily_message(scan_time, movers, predictions, global_chains)
+    message = format_daily_message(
+        scan_time,
+        movers,
+        predictions,
+        global_chains,
+        movement_correlations,
+        corr_trades,
+    )
     plain = format_plain(message)
+    plain += "\n".join(format_trades_plain(corr_trades))
 
     os.makedirs(os.path.dirname(DAILY_OUTPUT) or ".", exist_ok=True)
     with open(DAILY_OUTPUT, "w") as fh:
@@ -222,18 +277,24 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
         if bot.enabled:
             sent = bot.send_message(message)
 
-    _log_scan_heartbeat(scan_time, len(predictions), sent)
+    n_corr = log_correlation_trades(corr_trades, telegram_sent=sent)
+    update_correlation_outcomes()
+    write_corr_report()
+
+    _log_scan_heartbeat(scan_time, len(corr_trades), sent)
     log_predictions(scan_time, predictions, sent)
     update_outcomes(min_age_days=1)
     write_scoreboard()
     write_tracker_report()
 
     logger.info(
-        "Pipeline done: universe=%s focus=%d predictions=%d telegram=%s",
+        "Pipeline done: universe=%s focus=%d corr_trades=%d strict_preds=%d telegram=%s logged=%d",
         getattr(scan_result, "universe_size", "?"),
         len(focus_list),
+        len(corr_trades),
         len(predictions),
         sent,
+        n_corr,
     )
     return True, plain
 

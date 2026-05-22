@@ -18,6 +18,9 @@ from momentum_chain import lead_lag_corr
 from pair_playbook import PairPlaybook
 from pipeline_config import (
     COST_BPS_PER_SIDE,
+    DISCOVERY_MAX_LINKS,
+    DISCOVERY_MIN_CORR,
+    DISCOVERY_MIN_HIT,
     FADE_MODE,
     HOLD_DAYS,
     MIN_CORR,
@@ -27,6 +30,7 @@ from pipeline_config import (
     SPREAD_STOP_Z,
     TIME_STOP_DAYS,
 )
+from returns_align import last_valid_end_idx, moves_from_rets, ret_pct
 
 
 def _trade_direction(corr: float, leader_prior_pct: float) -> str:
@@ -53,6 +57,21 @@ class MovementSnapshot:
     price: float
     move_1d_pct: float
     move_5d_pct: float
+
+
+@dataclass
+class MovementCorrelation:
+    """Observed correlated move (no trade filters) — what the scan actually sees."""
+    focus: str
+    leader: str
+    corr: float
+    lag_days: int
+    horizon_days: int
+    focus_move_1d: float
+    leader_move_1d: float
+    hit_rate: Optional[float]
+    layer: str
+    chain_path: str
 
 
 @dataclass
@@ -120,6 +139,8 @@ def _edges_from_rets(
     end_idx: int,
     min_corr: float,
     targets: Optional[List[str]] = None,
+    *,
+    min_hit: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     if focus not in rets.columns or end_idx < CORR_WINDOW + 5:
         return []
@@ -145,7 +166,8 @@ def _edges_from_rets(
                 hit, hit_n = lead_lag_hit_rate(sub[focus], sub[target], lag, c, min_events=10)
         if abs(best_c) < min_corr:
             continue
-        if hit is not None and hit < MIN_HIT:
+        hit_floor = MIN_HIT if min_hit is None else min_hit
+        if hit_floor > 0 and hit is not None and hit < hit_floor:
             continue
         edges.append({
             "target": target,
@@ -158,6 +180,89 @@ def _edges_from_rets(
         })
     edges.sort(key=lambda x: abs(x["corr"]), reverse=True)
     return edges
+
+
+def discover_movement_correlations(
+    data: Dict[str, pd.DataFrame],
+    rets: pd.DataFrame,
+    focus_list: List[str],
+    end_idx: Optional[int] = None,
+    *,
+    min_corr: float = DISCOVERY_MIN_CORR,
+    max_links: int = DISCOVERY_MAX_LINKS,
+) -> List[MovementCorrelation]:
+    """
+    Surface correlated movers (includes index ETFs / macro) without v2 trade gates.
+    """
+    if rets.empty:
+        return []
+    end_idx = last_valid_end_idx(rets) if end_idx is None else end_idx
+    if end_idx < 10:
+        return []
+
+    try:
+        from global_indexes import GLOBAL_INDEX_ETFS, correlation_candidates, is_global_mode
+    except ImportError:
+        GLOBAL_INDEX_ETFS = {}
+        is_global_mode = lambda: False  # noqa: E731
+
+    out: List[MovementCorrelation] = []
+    seen: set = set()
+
+    for focus in focus_list:
+        if focus not in rets.columns:
+            continue
+        targets = (
+            correlation_candidates(focus, list(rets.columns), max_cols=600)
+            if is_global_mode()
+            else None
+        )
+        edges = _edges_from_rets(
+            rets,
+            focus,
+            end_idx,
+            min_corr,
+            targets=targets,
+            min_hit=DISCOVERY_MIN_HIT,
+        )
+        f1d = ret_pct(rets, focus, end_idx)
+        for e in edges[:12]:
+            leader = e["target"]
+            if leader == focus:
+                continue
+            l1d = ret_pct(rets, leader, end_idx)
+            # Need some movement on at least one leg to be a "movement correlation"
+            if abs(f1d) < 0.35 and abs(l1d) < 0.35:
+                continue
+            key = (focus, leader)
+            if key in seen:
+                continue
+            seen.add(key)
+            layer = e.get("layer") or "equity"
+            if leader in GLOBAL_INDEX_ETFS:
+                layer = "index_etf"
+            elif leader in MACRO_NODES:
+                layer = "macro"
+            out.append(
+                MovementCorrelation(
+                    focus=focus,
+                    leader=leader,
+                    corr=round(e["corr"], 3),
+                    lag_days=e["lag"],
+                    horizon_days=e["horizon"],
+                    focus_move_1d=round(f1d, 2),
+                    leader_move_1d=round(l1d, 2),
+                    hit_rate=e.get("hit_rate"),
+                    layer=layer,
+                    chain_path=f"{leader} → {focus}",
+                )
+            )
+
+    out.sort(
+        key=lambda x: (abs(x.corr) * max(abs(x.leader_move_1d), abs(x.focus_move_1d), 0.5)),
+        reverse=True,
+    )
+    return out[:max_links]
 
 
 def _path_lags_valid(rets: pd.DataFrame, nodes: List[str], end_idx: int) -> bool:
@@ -205,30 +310,17 @@ def generate_predictions(
     *,
     apply_playbook: bool = True,
 ) -> Tuple[List[MovementSnapshot], List[ChainPrediction]]:
+    if rets.empty:
+        return [], []
     if end_idx is None:
-        end_idx = len(rets) - 1
+        end_idx = last_valid_end_idx(rets)
 
     movers: List[MovementSnapshot] = []
     for sym in focus_list:
-        if sym not in data:
+        if sym not in rets.columns:
             continue
-        df = data[sym]
-        if end_idx >= len(df):
-            continue
-        c = df["Close"]
-        movers.append(
-            MovementSnapshot(
-                ticker=sym,
-                price=round(float(c.iloc[end_idx]), 2),
-                move_1d_pct=round(_pct(c, end_idx), 2),
-                move_5d_pct=round(
-                    (float(c.iloc[end_idx]) / float(c.iloc[end_idx - 5]) - 1) * 100
-                    if end_idx >= 5 and float(c.iloc[end_idx - 5]) > 0
-                    else 0.0,
-                    2,
-                ),
-            )
-        )
+        price, m1, m5 = moves_from_rets(data, rets, sym, end_idx)
+        movers.append(MovementSnapshot(ticker=sym, price=price, move_1d_pct=m1, move_5d_pct=m5))
 
     raw_preds: List[ChainPrediction] = []
     seen = set()
@@ -237,9 +329,8 @@ def generate_predictions(
         if focus not in data or focus not in rets.columns:
             continue
         fdf = data[focus]
-        if end_idx >= len(fdf):
-            continue
-        f_move = _pct(fdf["Close"], end_idx)
+        f_move = ret_pct(rets, focus, end_idx)
+        f_price = moves_from_rets(data, rets, focus, end_idx)[0]
         try:
             from global_indexes import correlation_candidates, is_global_mode
 
@@ -270,10 +361,9 @@ def generate_predictions(
             target = e["target"]
             if e["layer"] == "macro":
                 continue
-            ldf = data.get(target)
-            if ldf is None or end_idx >= len(ldf):
+            if target not in rets.columns:
                 continue
-            l_move_prior = _pct(ldf["Close"], end_idx - 1) if end_idx >= 2 else _pct(ldf["Close"], end_idx)
+            l_move_prior = ret_pct(rets, target, end_idx, offset=1) if end_idx >= 1 else ret_pct(rets, target, end_idx)
             lag = e["lag"]
             corr = e["corr"]
 
@@ -322,7 +412,7 @@ def generate_predictions(
                 hit_n=e.get("hit_n", 0),
                 spread_z=round(z, 2),
             )
-            raw_preds.append(_attach_levels(p, fdf.iloc[: end_idx + 1]))
+            raw_preds.append(_attach_levels(p, fdf))
 
         for path in paths:
             if path.hops < 2 or len(path.nodes) < 3:
@@ -332,10 +422,9 @@ def generate_predictions(
             a, b, c = path.nodes[0], path.nodes[1], path.nodes[2]
             if a != focus:
                 continue
-            mid_df = data.get(b)
-            if mid_df is None or end_idx >= len(mid_df):
+            if b not in rets.columns:
                 continue
-            mid_move = _pct(mid_df["Close"], end_idx - 1) if end_idx >= 2 else _pct(mid_df["Close"], end_idx)
+            mid_move = ret_pct(rets, b, end_idx, offset=1) if end_idx >= 1 else ret_pct(rets, b, end_idx)
             corr_fb = next((x["corr"] for x in edges_raw if x["target"] == b), path.min_corr)
             direction = _trade_direction(corr_fb, mid_move)
             ok, _ = filter_candidate(
@@ -366,7 +455,7 @@ def generate_predictions(
             p = ChainPrediction(
                 signal_date=signal_date,
                 focus=focus,
-                focus_price=round(float(fdf["Close"].iloc[end_idx]), 2),
+                focus_price=f_price,
                 focus_move_1d=f_move,
                 prediction_type="chain_propagation",
                 leader=b,
@@ -383,7 +472,7 @@ def generate_predictions(
                 hit_n=0,
                 spread_z=round(z, 2),
             )
-            raw_preds.append(_attach_levels(p, fdf.iloc[: end_idx + 1]))
+            raw_preds.append(_attach_levels(p, fdf))
 
     if apply_playbook:
         predictions = apply_playbook_and_rank(raw_preds, use_static=True)

@@ -22,7 +22,9 @@ Set `SCAN_UNIVERSE=global` (default) to scan **~18 benchmarks** (US, Europe, Asi
 - Builds **cross-index ETF chains** (SPY → EFA → EWJ → …) in every alert
 - Runs deep stock chains on top volatile names globally
 
-US-only: `SCAN_UNIVERSE=us`. Tune batch size: `YF_BATCH_SIZE=100`, `MOMENTUM_TOP_N=25`.
+US-only: `SCAN_UNIVERSE=us`. Tune batch size: `YF_BATCH_SIZE=100`, `MOMENTUM_TOP_N=30`, `PIPELINE_FOCUS_N=24`.
+
+**Correlation trades:** every pair with |r| ≥ `CORR_TRADE_MIN_R` (default **0.60**) → logged to `data/correlation_trades.csv` with date, time, leader, follower, hit, trade, stop, take-win. Status updated for **7 days** each run.
 
 Optional GitHub backup: `scripts/setup_github_secret.sh`.
 

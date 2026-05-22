@@ -121,19 +121,11 @@ def _bulk_download(tickers: List[str], period: str = "2y") -> Dict[str, pd.DataF
     return out
 
 
-def _returns_matrix(data: Dict[str, pd.DataFrame], min_bars: int = 130) -> pd.DataFrame:
-    series = {}
-    for sym, df in data.items():
-        if df is None or len(df) < min_bars:
-            continue
-        if min_dollar_volume(df) < MIN_LIQUIDITY and sym not in MACRO_NODES:
-            continue
-        r = daily_returns(df["Close"])
-        if len(r) >= min_bars:
-            series[sym] = r
-    if not series:
-        return pd.DataFrame()
-    return pd.DataFrame(series).dropna(how="all")
+def _returns_matrix(data: Dict[str, pd.DataFrame], min_bars: int = 60) -> pd.DataFrame:
+    """Delegate to returns_align (6mo scans need min_bars < 130)."""
+    from returns_align import build_returns_matrix
+
+    return build_returns_matrix(data, min_bars=min_bars)
 
 
 def _moves(df: pd.DataFrame) -> Tuple[float, float]:

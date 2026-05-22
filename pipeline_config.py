@@ -14,7 +14,10 @@ PLAYBOOK_FILE = os.getenv(
 # Correlation / lag
 CORR_WINDOW = int(os.getenv("PIPELINE_CORR_WINDOW", "60"))
 MIN_CORR = float(os.getenv("PIPELINE_MIN_CORR", "0.58"))
+DISCOVERY_MIN_CORR = float(os.getenv("PIPELINE_DISCOVERY_MIN_CORR", "0.55"))
+DISCOVERY_MAX_LINKS = int(os.getenv("PIPELINE_DISCOVERY_MAX", "40"))
 MIN_HIT = float(os.getenv("PIPELINE_MIN_HIT", "58"))
+DISCOVERY_MIN_HIT = float(os.getenv("PIPELINE_DISCOVERY_MIN_HIT", "0"))  # 0 = no hit filter
 MIN_LAG_DAYS = int(os.getenv("PIPELINE_MIN_LAG_DAYS", "1"))
 LEADER_MOVE_MIN = float(os.getenv("PIPELINE_LEADER_MOVE", "2.0"))
 GAP_MIN = float(os.getenv("PIPELINE_GAP_MIN", "1.0"))

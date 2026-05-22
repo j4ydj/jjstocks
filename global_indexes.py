@@ -172,7 +172,6 @@ def correlation_candidates(
     """
     focus = focus.upper()
     want: Set[str] = set(GLOBAL_INDEX_ETFS.keys())
-    want.update(all_columns)  # will trim below
 
     membership = ticker_indexes(focus)
     for idx_id in membership:
