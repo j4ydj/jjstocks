@@ -1,13 +1,50 @@
 # Correlation trades
 
-> Updated: **2026-05-20 13:24:45**
+> Updated: **2026-05-22 10:27:51**
 > Store: `/Users/home/stocks/data/correlation_trades.jsonl` · CSV: `/Users/home/stocks/data/correlation_trades.csv`
 > Rule: |r| ≥ **0.6** → trade on **follower** · track **7d**
 
 | Open | 32 |
 | Closed / stopped / won | 0 |
 
-## Open (latest)
+## Performance (as if real — latest price)
+
+| date | follower | trade | entry | now | P&L% | status | stop? | target? |
+|------|----------|-------|-------|-----|------|--------|-------|---------|
+| 2026-05-20 | CCI | BUY | $92.34 | — | — | open | N | N |
+| 2026-05-20 | AME | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | XLE | BUY | $nan | — | — | open | — | — |
+| 2026-05-20 | EZA | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | PSN.L | SHORT | $1018.50 | — | — | open | N | N |
+| 2026-05-20 | ALLE | BUY | $nan | — | — | open | — | — |
+| 2026-05-20 | AME | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | PHIA.AS | BUY | $22.79 | — | — | open | N | N |
+| 2026-05-20 | ADI | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | POW.TO | BUY | $nan | — | — | open | — | — |
+| 2026-05-20 | AIG | BUY | $nan | — | — | open | — | — |
+| 2026-05-20 | BEI.DE | BUY | $70.44 | — | — | open | N | N |
+| 2026-05-20 | RY.TO | BUY | $nan | — | — | open | — | — |
+| 2026-05-20 | BN.PA | BUY | $63.26 | — | — | open | N | N |
+| 2026-05-20 | APD | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | ADI | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | COO | BUY | $61.45 | — | — | open | N | N |
+| 2026-05-20 | ADI | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | AZO | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | AMT | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | HO.PA | BUY | $229.10 | — | — | open | N | N |
+| 2026-05-20 | ADSK | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | BAX | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | EWY | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | AVB | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | REH.AX | BUY | $13.57 | — | — | open | N | N |
+| 2026-05-20 | CSGP | BUY | $33.80 | — | — | open | N | N |
+| 2026-05-20 | SBIN.NS | BUY | $950.90 | — | — | open | N | N |
+| 2026-05-20 | AMZN | BUY | $nan | — | — | open | — | — |
+| 2026-05-20 | AMAT | SHORT | $nan | — | — | open | — | — |
+| 2026-05-20 | CPAY | SHORT | $343.14 | — | — | open | N | N |
+| 2026-05-20 | ORI.AX | BUY | $22.67 | — | — | open | N | N |
+
+## Open (setup)
 
 | date | time | leader | follower | r | hit | trade | stop | target |
 |------|------|--------|----------|---|-----|-------|------|--------|

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
@@ -245,6 +246,67 @@ def log_correlation_trades(
     return n
 
 
+def _fetch_latest_prices(tickers: List[str]) -> Dict[str, float]:
+    """Latest close per ticker (batch)."""
+    import yfinance as yf
+
+    out: Dict[str, float] = {}
+    uniq = list({t.upper() for t in tickers if t})
+    if not uniq:
+        return out
+    try:
+        raw = yf.download(uniq, period="5d", progress=False, threads=True, auto_adjust=True)
+        if raw is None or raw.empty:
+            return out
+        if isinstance(raw.columns, pd.MultiIndex):
+            for t in uniq:
+                if t in raw.columns.get_level_values(0):
+                    sub = raw[t]["Close"].dropna()
+                    if len(sub):
+                        out[t] = float(sub.iloc[-1])
+        else:
+            if len(uniq) == 1 and "Close" in raw.columns:
+                sub = raw["Close"].dropna()
+                if len(sub):
+                    out[uniq[0]] = float(sub.iloc[-1])
+    except Exception:
+        for t in uniq:
+            try:
+                h = yf.Ticker(t).history(period="5d")
+                if h is not None and len(h):
+                    out[t] = float(h["Close"].iloc[-1])
+            except Exception:
+                pass
+    return out
+
+
+def _pnl_pct(direction: str, entry: float, current: float) -> Optional[float]:
+    if entry <= 0 or current <= 0:
+        return None
+    raw = (current / entry - 1) * 100
+    return round(raw if direction == "BUY" else -raw, 2)
+
+
+def enrich_with_latest_prices(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Attach current_price and pnl_pct to each record (in-place)."""
+    followers = [r.get("stock_follower") or r.get("ticker") or "" for r in records]
+    prices = _fetch_latest_prices(followers)
+    for r in records:
+        fol = (r.get("stock_follower") or r.get("ticker") or "").upper()
+        entry = float(r.get("entry_price") or 0)
+        direction = r.get("trade") or r.get("direction", "BUY")
+        px = prices.get(fol)
+        if px and px > 0:
+            r["current_price"] = round(px, 2)
+            pnl = _pnl_pct(direction, entry, px)
+            if pnl is not None:
+                r["pnl_pct"] = pnl
+        else:
+            r["current_price"] = None
+            r["pnl_pct"] = None
+    return records
+
+
 def update_correlation_outcomes(track_days: int = CORR_TRACK_DAYS) -> int:
     """Refresh open correlation trades for up to track_days."""
     from trade_tracker import _fwd_return, _signed, _stop_target_hit
@@ -310,8 +372,8 @@ def update_correlation_outcomes(track_days: int = CORR_TRACK_DAYS) -> int:
         rec["outcomes_updated"] = datetime.now().isoformat()
         updated += 1
 
-    if updated:
-        save_all(records)
+    enrich_with_latest_prices(records)
+    save_all(records)
     export_csv(records)
     write_report(records)
     return updated
@@ -344,6 +406,8 @@ def export_csv(records: Optional[List[Dict[str, Any]]] = None) -> str:
         "ret_7d",
         "stop_hit",
         "target_hit",
+        "current_price",
+        "pnl_pct",
         "trade_id",
         "logged_at",
     ]
@@ -363,6 +427,7 @@ def write_report(records: Optional[List[Dict[str, Any]]] = None) -> str:
     open_t = [r for r in records if r.get("status") == "open"]
     closed = [r for r in records if r.get("status") not in ("open", None)]
 
+    enrich_with_latest_prices(records)
     lines = [
         "# Correlation trades",
         "",
@@ -373,11 +438,27 @@ def write_report(records: Optional[List[Dict[str, Any]]] = None) -> str:
         f"| Open | {len(open_t)} |",
         f"| Closed / stopped / won | {len(closed)} |",
         "",
-        "## Open (latest)",
+        "## Performance (as if real — latest price)",
         "",
-        "| date | time | leader | follower | r | hit | trade | stop | target |",
-        "|------|------|--------|----------|---|-----|-------|------|--------|",
+        "| date | follower | trade | entry | now | P&L% | status | stop? | target? |",
+        "|------|----------|-------|-------|-----|------|--------|-------|---------|",
     ]
+    recent = sorted(records, key=lambda x: (x.get("date", ""), x.get("time", "")), reverse=True)[:40]
+    for r in recent:
+        hit = r.get("hit")
+        ep = float(r.get("entry_price") or 0)
+        now = r.get("current_price")
+        pnl = r.get("pnl_pct")
+        now_s = f"${now:.2f}" if now else "—"
+        pnl_s = f"{pnl:+.2f}%" if pnl is not None else "—"
+        oc = r.get("outcomes") or {}
+        sh = "Y" if oc.get("stop_hit") else ("N" if oc.get("stop_hit") is False else "—")
+        th = "Y" if oc.get("target_hit") else ("N" if oc.get("target_hit") is False else "—")
+        lines.append(
+            f"| {r.get('date','')} | {r.get('stock_follower','')} | {r.get('trade','')} | "
+            f"${ep:.2f} | {now_s} | {pnl_s} | {r.get('status','')} | {sh} | {th} |"
+        )
+    lines.extend(["", "## Open (setup)", "", "| date | time | leader | follower | r | hit | trade | stop | target |", "|------|------|--------|----------|---|-----|-------|------|--------|"])
     for r in sorted(open_t, key=lambda x: x.get("logged_at", ""), reverse=True)[:30]:
         hit = r.get("hit")
         hit_s = f"{hit:.0f}%" if hit is not None else "—"
@@ -409,6 +490,61 @@ def format_trades_plain(trades: List[CorrelationTrade]) -> List[str]:
     return lines
 
 
+def format_performance_plain(
+    records: Optional[List[Dict[str, Any]]] = None,
+    *,
+    max_rows: int = 40,
+    days_back: int = 14,
+) -> List[str]:
+    """
+    Live P&L as if trades were entered at scan: entry vs latest price, status, stop/target hits.
+    Run after update_correlation_outcomes() or use --refresh.
+    """
+    records = _dedupe(records if records is not None else load_all())
+    if not records:
+        return ["", "Performance: no logged trades yet."]
+    cutoff = (datetime.now().date() - timedelta(days=days_back)).isoformat()
+    recent = [r for r in records if (r.get("date") or "")[:10] >= cutoff]
+    recent = sorted(recent, key=lambda x: (x.get("date", ""), x.get("time", "")), reverse=True)[:max_rows]
+    enrich_with_latest_prices(recent)
+
+    lines = [
+        "",
+        "Performance (as if real — entry at scan, latest price now)",
+        "date,follower,trade,entry,current_price,pnl_pct,status,stop_hit,target_hit,ret_1d,ret_7d",
+    ]
+    for r in recent:
+        oc = r.get("outcomes") or {}
+        ep = float(r.get("entry_price") or 0)
+        now = r.get("current_price")
+        pnl = r.get("pnl_pct")
+        now_s = f"{now:.2f}" if now else ""
+        pnl_s = f"{pnl:+.2f}" if pnl is not None else ""
+        r1 = oc.get("ret_1d")
+        r7 = oc.get("ret_7d")
+        r1_s = f"{r1:+.2f}" if r1 is not None else ""
+        r7_s = f"{r7:+.2f}" if r7 is not None else ""
+        sh = oc.get("stop_hit")
+        th = oc.get("target_hit")
+        sh_s = "Y" if sh is True else ("N" if sh is False else "")
+        th_s = "Y" if th is True else ("N" if th is False else "")
+        lines.append(
+            f"{r.get('date','')},{r.get('stock_follower','')},{r.get('trade','')},"
+            f"{ep:.2f},{now_s},{pnl_s},{r.get('status','')},{sh_s},{th_s},{r1_s},{r7_s}"
+        )
+    closed = [r for r in recent if r.get("status") in ("won", "lost", "stopped", "closed", "expired")]
+    if closed:
+        pnls = [r["pnl_pct"] for r in closed if r.get("pnl_pct") is not None]
+        if pnls:
+            wins = sum(1 for p in pnls if p > 0)
+            lines.append("")
+            lines.append(
+                f"Summary (closed/expired in list): {wins}/{len(pnls)} winners, "
+                f"avg P&L {sum(pnls)/len(pnls):+.2f}%"
+            )
+    return lines
+
+
 def format_trades_html(trades: List[CorrelationTrade]) -> List[str]:
     lines = ["", f"<b>Correlation trades</b> (|r| ≥ {CORR_TRADE_MIN_R})"]
     for t in trades[:25]:
@@ -422,3 +558,19 @@ def format_trades_html(trades: List[CorrelationTrade]) -> List[str]:
     if len(trades) > 25:
         lines.append(f"  <i>…and {len(trades) - 25} more in correlation_trades.csv</i>")
     return lines
+
+
+if __name__ == "__main__":
+    import argparse
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    p = argparse.ArgumentParser(description="Correlation trade log & performance")
+    p.add_argument("--refresh", action="store_true", help="Update outcomes + latest prices, export CSV/report")
+    p.add_argument("--performance", action="store_true", help="Print performance table to stdout")
+    args = p.parse_args()
+    if args.refresh or args.performance:
+        n = update_correlation_outcomes()
+        print(f"Updated {n} trade outcome(s). CSV: {CORR_TRADES_CSV}")
+    if args.performance or args.refresh:
+        for line in format_performance_plain():
+            print(line)

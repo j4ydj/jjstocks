@@ -25,6 +25,7 @@ from pipeline_core import (
 from returns_align import build_returns_matrix
 from correlation_trades import (
     build_correlation_trades,
+    format_performance_plain,
     format_trades_html,
     format_trades_plain,
     log_correlation_trades,
@@ -266,10 +267,6 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     plain = format_plain(message)
     plain += "\n".join(format_trades_plain(corr_trades))
 
-    os.makedirs(os.path.dirname(DAILY_OUTPUT) or ".", exist_ok=True)
-    with open(DAILY_OUTPUT, "w") as fh:
-        fh.write(plain)
-
     sent = False
     if send_telegram:
         from telegram_alerts import TelegramBot
@@ -280,6 +277,11 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     n_corr = log_correlation_trades(corr_trades, telegram_sent=sent)
     update_correlation_outcomes()
     write_corr_report()
+    plain += "\n".join(format_performance_plain())
+
+    os.makedirs(os.path.dirname(DAILY_OUTPUT) or ".", exist_ok=True)
+    with open(DAILY_OUTPUT, "w") as fh:
+        fh.write(plain)
 
     _log_scan_heartbeat(scan_time, len(corr_trades), sent)
     log_predictions(scan_time, predictions, sent)
