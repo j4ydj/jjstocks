@@ -1,6 +1,6 @@
 # Trade tracking report
 
-> Generated: **2026-05-23 10:29:27**
+> Generated: **2026-05-23 21:34:53**
 > Log file: `/Users/home/stocks/data/trade_setups.jsonl`
 > CSV: `/Users/home/stocks/data/trade_tracker.csv`
 
@@ -8,9 +8,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Scans logged | 11 |
-| Proposed trades | 6 |
-| Open | 3 |
+| Scans logged | 12 |
+| Proposed trades | 7 |
+| Open | 4 |
 | Closed (10d or stop/target) | 3 |
 | Closed with 5d outcome | 0/3 wins (0%), avg -4.18% |
 
@@ -18,8 +18,9 @@
 
 | ID | Date | Type | Dir | Ticker | Entry | Stop | Target | Telegram |
 |----|------|------|-----|--------|-------|------|--------|----------|
-| 20260523102926-IONQ-approved | 2026-05-23 | corr_pair | SHORT | IONQ | $63.64 | $65.80 | $59.32 | no |
-| 20260523102926-AMD-approved | 2026-05-23 | corr_pair | SHORT | AMD | $467.51 | $481.41 | $439.71 | no |
+| 20260523213452-IONQ-approved | 2026-05-23 | corr_pair | SHORT | IONQ | $63.64 | $65.80 | $59.32 | no |
+| 20260523213452-AMD-approved | 2026-05-23 | corr_pair | SHORT | AMD | $467.51 | $481.41 | $439.71 | no |
+| 20260523213452-MPWR-approved | 2026-05-23 | corr_pair | SHORT | MPWR | $1589.81 | $1675.42 | $1418.59 | no |
 | 20260523102926-ACHR-approved | 2026-05-23 | corr_pair | SHORT | ACHR | $6.36 | $6.75 | $5.58 | no |
 
 ## Closed trades (with outcomes)
