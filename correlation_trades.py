@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import math
 import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
@@ -97,11 +98,19 @@ def _leader_follower(c: MovementCorrelation) -> Tuple[str, str, float, float]:
     return c.focus, c.leader, c.focus_move_1d, c.leader_move_1d
 
 
-def _trade_direction_simple(corr: float, leader_move: float) -> str:
-    """Momentum follow on positive corr; inverse on negative corr."""
-    if corr >= 0:
-        return "BUY" if leader_move > 0 else "SHORT"
-    return "SHORT" if leader_move > 0 else "BUY"
+def _valid_price(x: Any) -> bool:
+    try:
+        v = float(x)
+        return v > 0 and math.isfinite(v)
+    except (TypeError, ValueError):
+        return False
+
+
+def _trade_direction(corr: float, leader_move: float) -> str:
+    """Same rule as pipeline v2 (fade by default)."""
+    from pipeline_core import _trade_direction as _dir
+
+    return _dir(corr, leader_move)
 
 
 def build_correlation_trades(
@@ -131,15 +140,15 @@ def build_correlation_trades(
             continue
         seen.add(key)
 
-        direction = _trade_direction_simple(c.corr, l_move)
+        direction = _trade_direction(c.corr, l_move)
         df = _get_df(data, follower)
         entry = last_price(data, follower)
-        if entry <= 0:
+        if not _valid_price(entry):
             continue
 
         if df is not None and len(df) >= 20:
             lv = calculate_levels(follower, direction, df, conviction=4, hold_days=HOLD_DAYS)
-            if lv and lv.entry_price > 0:
+            if lv and _valid_price(lv.entry_price):
                 entry, stop, target = lv.entry_price, lv.stop_loss, lv.target_price
             else:
                 stop = round(entry * (0.95 if direction == "BUY" else 1.05), 2)
@@ -147,6 +156,9 @@ def build_correlation_trades(
         else:
             stop = round(entry * (0.95 if direction == "BUY" else 1.05), 2)
             target = round(entry * (1.10 if direction == "BUY" else 0.90), 2)
+
+        if not all(_valid_price(x) for x in (entry, stop, target)):
+            continue
 
         tid = f"{scan_id}-{leader}-{follower}"[:64]
         trades.append(
@@ -515,11 +527,18 @@ def format_performance_plain(
     ]
     for r in recent:
         oc = r.get("outcomes") or {}
-        ep = float(r.get("entry_price") or 0)
+        ep_raw = r.get("entry_price")
+        if not _valid_price(ep_raw):
+            lines.append(
+                f"{r.get('date','')},{r.get('stock_follower','')},{r.get('trade','')},"
+                f"invalid,,,{r.get('status','')},,,,  (no price at scan — skip)"
+            )
+            continue
+        ep = float(ep_raw)
         now = r.get("current_price")
         pnl = r.get("pnl_pct")
-        now_s = f"{now:.2f}" if now else ""
-        pnl_s = f"{pnl:+.2f}" if pnl is not None else ""
+        now_s = f"{now:.2f}" if _valid_price(now) else ""
+        pnl_s = f"{pnl:+.2f}" if pnl is not None and math.isfinite(float(pnl)) else ""
         r1 = oc.get("ret_1d")
         r7 = oc.get("ret_7d")
         r1_s = f"{r1:+.2f}" if r1 is not None else ""
@@ -545,6 +564,25 @@ def format_performance_plain(
     return lines
 
 
+def format_performance_html(max_rows: int = 8) -> List[str]:
+    """Short HTML block for Telegram — open positions P&L."""
+    lines = format_performance_plain(max_rows=max_rows, days_back=14)
+    if len(lines) <= 2:
+        return []
+    out = []
+    for ln in lines[2:]:
+        if not ln.strip() or ln.startswith("Summary"):
+            if ln.startswith("Summary"):
+                out.append(f"  <i>{ln}</i>")
+            continue
+        parts = ln.split(",")
+        if len(parts) >= 6 and parts[3] != "invalid":
+            fol, tr, ep, now, pnl = parts[1], parts[2], parts[3], parts[4], parts[5]
+            pnl_s = f"{pnl}%" if pnl else "—"
+            out.append(f"  • {fol} {tr} entry ${ep} → now ${now} ({pnl_s})")
+    return out[:max_rows]
+
+
 def format_trades_html(trades: List[CorrelationTrade]) -> List[str]:
     lines = ["", f"<b>Correlation trades</b> (|r| ≥ {CORR_TRADE_MIN_R})"]
     for t in trades[:25]:
@@ -562,15 +600,25 @@ def format_trades_html(trades: List[CorrelationTrade]) -> List[str]:
 
 if __name__ == "__main__":
     import argparse
+    import sys
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     p = argparse.ArgumentParser(description="Correlation trade log & performance")
     p.add_argument("--refresh", action="store_true", help="Update outcomes + latest prices, export CSV/report")
     p.add_argument("--performance", action="store_true", help="Print performance table to stdout")
     args = p.parse_args()
-    if args.refresh or args.performance:
-        n = update_correlation_outcomes()
-        print(f"Updated {n} trade outcome(s). CSV: {CORR_TRADES_CSV}")
-    if args.performance or args.refresh:
-        for line in format_performance_plain():
-            print(line)
+    if not args.refresh and not args.performance:
+        p.print_help()
+        sys.exit(0)
+    try:
+        if args.refresh or args.performance:
+            n = update_correlation_outcomes()
+            print(f"Updated {n} trade outcome(s). CSV: {CORR_TRADES_CSV}")
+        if args.performance or args.refresh:
+            for line in format_performance_plain():
+                print(line)
+    except Exception as e:
+        logging.exception("Failed: %s", e)
+        print(f"\nError: {e}", file=sys.stderr)
+        print("Tip: run from repo root; need data/correlation_trades.jsonl (run daily_pipeline once).", file=sys.stderr)
+        sys.exit(1)

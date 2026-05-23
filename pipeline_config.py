@@ -31,7 +31,7 @@ PARTIAL_TARGET_R = float(os.getenv("PIPELINE_PARTIAL_R", "1.0"))
 SPREAD_STOP_Z = float(os.getenv("PIPELINE_SPREAD_STOP_Z", "2.5"))
 
 # Portfolio
-MAX_TRADES_PER_SCAN = int(os.getenv("PIPELINE_MAX_TRADES", "2"))
+MAX_TRADES_PER_SCAN = int(os.getenv("PIPELINE_MAX_TRADES", "3"))
 MAX_PER_THEME = int(os.getenv("PIPELINE_MAX_PER_THEME", "1"))
 
 # Regime (prior-day % moves)
@@ -45,3 +45,11 @@ WF_TRAIN_FRAC = float(os.getenv("WF_TRAIN_FRAC", "0.65"))
 # Backtests showed momentum catch-up loses; fade (contrarian) wins ~3:1 on v2 candidates.
 FADE_MODE = os.getenv("PIPELINE_FADE_MODE", "1") == "1"
 DISABLE_BUY = os.getenv("PIPELINE_DISABLE_BUY", "0") == "1"
+
+# Approved-trade layer (Telegram): US liquid only, min unconventional edge score
+MIN_ALT_SCORE = float(os.getenv("PIPELINE_MIN_ALT_SCORE", "42"))
+FALLBACK_ALT_SCORE = float(os.getenv("PIPELINE_FALLBACK_ALT_SCORE", "32"))
+TARGET_MIN_TRADES_PER_SCAN = int(os.getenv("PIPELINE_TARGET_MIN_TRADES", "1"))
+PIPELINE_ACTIONABLE_US = os.getenv("PIPELINE_ACTIONABLE_US", "1") == "1"
+MIN_CORR_ACTIONABLE = float(os.getenv("PIPELINE_MIN_CORR_ACTIONABLE", "0.60"))
+MIN_CORR_FALLBACK = float(os.getenv("PIPELINE_MIN_CORR_FALLBACK", "0.65"))

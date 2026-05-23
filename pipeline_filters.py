@@ -81,7 +81,7 @@ def regime_allows(
     spy = spy_ret if spy_ret is not None else 0.0
     qqq = qqq_ret if qqq_ret is not None else 0.0
     vix = vix_ret if vix_ret is not None else 0.0
-    if direction == "LONG" and vix >= VIX_PANIC_1D:
+    if direction == "BUY" and vix >= VIX_PANIC_1D:
         return False, "VIX spike — no new longs"
     if not macro_agrees(direction, 0, spy, qqq):
         return False, "macro disagrees (SPY/QQQ)"

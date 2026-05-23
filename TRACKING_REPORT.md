@@ -1,6 +1,6 @@
 # Trade tracking report
 
-> Generated: **2026-05-20 13:24:45**
+> Generated: **2026-05-23 10:29:27**
 > Log file: `/Users/home/stocks/data/trade_setups.jsonl`
 > CSV: `/Users/home/stocks/data/trade_tracker.csv`
 
@@ -8,23 +8,27 @@
 
 | Metric | Value |
 |--------|-------|
-| Scans logged | 9 |
-| Proposed trades | 3 |
+| Scans logged | 11 |
+| Proposed trades | 6 |
 | Open | 3 |
-| Closed (10d or stop/target) | 0 |
+| Closed (10d or stop/target) | 3 |
+| Closed with 5d outcome | 0/3 wins (0%), avg -4.18% |
 
 ## Open trades
 
 | ID | Date | Type | Dir | Ticker | Entry | Stop | Target | Telegram |
 |----|------|------|-----|--------|-------|------|--------|----------|
-| 20260518113233-RKLB-cat | 2026-05-18 | catch_up | SHORT | RKLB | $124.77 | $133.18 | $107.95 | no |
-| 20260518113233-JOBY-cat | 2026-05-18 | catch_up | SHORT | JOBY | $10.36 | $10.88 | $9.32 | no |
-|  | 2026-05-18 | catch_up | SHORT | RKLB | $124.77 | $133.18 | $107.95 | no |
+| 20260523102926-IONQ-approved | 2026-05-23 | corr_pair | SHORT | IONQ | $63.64 | $65.80 | $59.32 | no |
+| 20260523102926-AMD-approved | 2026-05-23 | corr_pair | SHORT | AMD | $467.51 | $481.41 | $439.71 | no |
+| 20260523102926-ACHR-approved | 2026-05-23 | corr_pair | SHORT | ACHR | $6.36 | $6.75 | $5.58 | no |
 
 ## Closed trades (with outcomes)
 
-_No closed trades yet — outcomes fill after 1–10 days. Run `python trade_tracker.py --fill`._
-
+| Date | Type | Dir | Ticker | 1d | 5d | 10d | Stop hit | Target hit | Thesis |
+|------|------|-----|--------|----|----|-----|----------|------------|--------|
+| 2026-05-18 | catch_up | SHORT | RKLB | +2.9% | -3.5% | — | True | False | LUNR -7.2% today; RKLB lagging (-5.9%). Historical… |
+| 2026-05-18 | catch_up | SHORT | JOBY | +3.4% | -5.5% | — | True | False | RKLB -5.9% today; JOBY lagging (-2.6%). Historical… |
+| 2026-05-18 | catch_up | SHORT | RKLB | +2.9% | -3.5% | — | True | False | RDW +nan% today; RKLB lagging (-5.9%). Historicall… |
 
 ## Commands
 

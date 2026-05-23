@@ -1,51 +1,65 @@
-# Pipeline v2 — high-selectivity mode
+# Pipeline v2 — high-selectivity + unconventional edge
 
-Target **~90% win rate** on in-sample training; out-of-sample will be lower until forward log validates.
+Target **~90% win rate** on in-sample training; live uses **approved trades only** on Telegram.
 
 ## What changed
 
 | Layer | Change |
 |-------|--------|
-| **Direction** | `PIPELINE_FADE_MODE=1` (default): contrarian vs leader move — backtest ~81% vs ~21% momentum |
+| **Direction** | `PIPELINE_FADE_MODE=1` (default): contrarian vs leader move |
 | **Filters** | Prior-day leader ≥2%, spread z-score, SPY/QQQ regime, VIX panic gate |
-| **Risk** | Net of 10bps/side, 2-day time stop, spread-z stop, partial 1R |
-| **Portfolio** | Max 2 trades/scan, 1 per theme |
-| **Playbook** | Whitelist pairs with ≥90% train win when enough samples exist |
-| **Schedule** | Scan **21:00 UTC** (after US cash close) |
+| **Unconventional** | Wikipedia attention, SEC filing risk, global macro chains, residual spread z |
+| **Approved layer** | Up to **3** US-liquid trades/day; score ≥ **42** (fallback ≥ **32** so scans rarely show zero) |
+| **Telegram** | **4-section simple report** (new / existing / status / summary) |
+| **Research file** | Same report at top of `data/latest_pipeline_output.txt`; full correlation dump in appendix |
+| **Tier 3** | `paper_portfolio.py` (compound paper P&L), `backtest_approved.py` (live + CSV stats) |
+
+## Unconventional data (not typical scanners)
+
+| Signal | Source | Role |
+|--------|--------|------|
+| **Spread z** | Pair return residual vs beta | Fade entry when pair is stretched |
+| **Wikipedia** | Wikimedia pageviews | Attention before price; confirms or blocks |
+| **SEC** | EDGAR 10-K/10-Q phrases | Hard penalty if going concern / material weakness |
+| **Macro chains** | ~35 global index ETFs | GLD→EEM→EWY style propagation paths |
+| **Playbook** | Walk-forward pair history | Only pairs with proven win rate |
 
 ## Env vars
 
 See `pipeline_config.py`. Key toggles:
 
 - `PIPELINE_FADE_MODE=1` — contrarian entries (leave on)
-- `PIPELINE_TARGET_WIN_RATE=90` — playbook whitelist threshold
-- `PIPELINE_MAX_TRADES=2` — daily cap
+- `PIPELINE_MAX_TRADES=3` — daily cap on Telegram
+- `PIPELINE_TARGET_MIN_TRADES=1` — try to surface at least one trade per scan
+- `PIPELINE_ACTIONABLE_US=1` — only US-listed liquid names for actionable trades
+- `PIPELINE_MIN_ALT_SCORE=42` — min composite unconventional score
+- `PIPELINE_FALLBACK_ALT_SCORE=32` — relaxed floor if strict pass is empty
+- `PIPELINE_MIN_CORR_ACTIONABLE=0.60` — min |r| for correlation pairs in approved layer
+- `SCAN_UNIVERSE=global` — discovery scan; actionable still US-filtered when `PIPELINE_ACTIONABLE_US=1`
 
 ## Backtest
 
 ```bash
 python3 backtest_map_pipeline.py --years 2 --step 5
+python3 backtest_approved.py    # approved layer + paper portfolio stats → APPROVED_BACKTEST.md
 ```
-
-Outputs: `BACKTEST_PIPELINE_RESULTS.md`, `data/BACKTEST_PIPELINE_TRADES_V2.csv`, `data/pair_playbook.json`
 
 ## Live
 
-Railway runs `daily_pipeline.py` → Telegram + `data/trade_setups.jsonl`.
+Railway / cron → `daily_pipeline.py` → Telegram **approved only** + `data/latest_pipeline_output.txt`.
 
-**Manual trigger:** send `/run` in Telegram (only your `TELEGRAM_CHAT_ID`).
+**Manual:** `python3 daily_pipeline.py` (no Telegram) or `/run` in Telegram bot.
 
-## What the scan actually does (500 names)
+**Refresh P&L:**
 
-**Critical:** live scans use 6mo prices (~126 bars). `PIPELINE_MIN_BARS=60` (not 130) or the returns matrix is empty and correlations show as $0 / none.
+```bash
+python3 correlation_trades.py --refresh --performance
+```
 
-1. Loads universe from `SCAN_UNIVERSE`:
-   - **`global`** (default): ~18 index benchmarks + constituents in `data/indexes/` (~1k+ tickers, batched download)
-   - **`us`**: ~518 from `sp500_symbols.txt` + extras
-2. **One batch** Yahoo download (6 months) — scores **every** symbol that returned data (~470–490).
-3. Picks **top 15** volatile → builds chains (corr / lead-lag) on those only.
-4. Pipeline predictions on **top 12** focus names — not 518×518 daily.
+## Modules
 
-Typical runtime **1–3 minutes**, not a full correlation map of the entire market.
-
-If no trades: filters are strict or playbook empty — normal on quiet days.
+- `alt_signals.py` — Wikipedia, SEC, macro chain, spread z scoring
+- `simple_report.py` — Telegram + file: new / existing / status / summary
+- `approved_trades.py` — merge v2 + filtered correlation pairs with fallback selection
+- `paper_portfolio.py` — paper equity curve if you took every approved trade
+- `correlation_trades.py` — log all |r|≥0.6 for research; outcomes tracked 7d

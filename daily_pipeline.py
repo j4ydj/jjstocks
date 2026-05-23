@@ -14,7 +14,7 @@ from typing import List, Optional, Tuple
 from correlation_map import _bulk_download, _returns_matrix
 from momentum_chain import MomentumChainFinder
 from pair_playbook import PairPlaybook
-from pipeline_config import MAX_TRADES_PER_SCAN, TARGET_WIN_RATE
+from pipeline_config import MAX_TRADES_PER_SCAN, MIN_ALT_SCORE, TARGET_WIN_RATE
 from pipeline_core import (
     ChainPrediction,
     MovementCorrelation,
@@ -23,16 +23,15 @@ from pipeline_core import (
     generate_predictions,
 )
 from returns_align import build_returns_matrix
+from approved_trades import log_approved_trades, select_approved_trades
+from simple_report import format_simple_report
 from correlation_trades import (
     build_correlation_trades,
-    format_performance_plain,
-    format_trades_html,
     format_trades_plain,
     log_correlation_trades,
     update_correlation_outcomes,
     write_report as write_corr_report,
 )
-from pipeline_filters import select_portfolio
 from trade_tracker import SETUP_FILE, update_outcomes, write_report as write_tracker_report
 
 logger = logging.getLogger(__name__)
@@ -82,10 +81,7 @@ def format_daily_message(
                 f"(r={c.corr:+.2f}{lag_s}{hit_s}, {c.layer})"
             )
 
-    if correlation_trades:
-        lines.extend(format_trades_html(correlation_trades))
-
-    if not predictions and not correlation_trades:
+    if not predictions and not movement_correlations:
         lines.append("")
         if movement_correlations:
             lines.append("<i>No |r|≥0.60 trades this scan (see correlations above).</i>")
@@ -244,47 +240,78 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
     movers, raw_preds = generate_predictions(
         data, rets, focus_list, scan_time, apply_playbook=False,
     )
-    predictions, portfolio_blocked = select_portfolio(raw_preds)
-    if not raw_preds and not predictions:
+
+    approved, approve_notes = select_approved_trades(
+        raw_preds,
+        corr_trades,
+        rets,
+        global_chains=global_chains,
+    )
+    if approve_notes:
+        logger.info("Approve notes: %s", approve_notes[:6])
+    if not approved:
         pb = PairPlaybook()
         pb.load_static()
         logger.info(
-            "No trades: v2 filters or playbook (target %.0f%%, %d pairs loaded)",
-            TARGET_WIN_RATE,
+            "No approved trades (filters + alt score ≥%.0f; playbook pairs %d)",
+            MIN_ALT_SCORE,
             len(pb._static_allowed),
         )
-    elif portfolio_blocked:
-        logger.info("Portfolio cap blocked: %s", portfolio_blocked[:5])
 
-    message = format_daily_message(
+    context_lines: List[str] = []
+    if global_chains:
+        for ch in global_chains[:4]:
+            path = getattr(ch, "path", str(ch))
+            mc = getattr(ch, "min_corr", 0)
+            context_lines.append(f"  • Macro chain: {path} (r≥{mc:.2f})")
+    for c in (movement_correlations or [])[:3]:
+        hit_s = f", hist {c.hit_rate:.0f}%" if c.hit_rate else ""
+        context_lines.append(
+            f"  • {c.leader} {c.leader_move_1d:+.1f}% ↔ {c.focus} {c.focus_move_1d:+.1f}% "
+            f"(r={c.corr:+.2f}{hit_s})"
+        )
+
+    telegram_msg = format_simple_report(approved, scan_time, html=True)
+    plain = format_simple_report(approved, scan_time, html=False)
+
+    # Research appendix (file only)
+    digest = format_daily_message(
         scan_time,
         movers,
-        predictions,
+        raw_preds[:6],
         global_chains,
         movement_correlations,
-        corr_trades,
+        None,
     )
-    plain = format_plain(message)
-    plain += "\n".join(format_trades_plain(corr_trades))
+    plain += "\n\n--- Research appendix ---\n"
+    plain += format_plain(digest)
+    plain += "\n".join(format_trades_plain(corr_trades[:15]))
 
     sent = False
     if send_telegram:
         from telegram_alerts import TelegramBot
         bot = TelegramBot()
         if bot.enabled:
-            sent = bot.send_message(message)
+            sent = bot.send_message(telegram_msg)
 
     n_corr = log_correlation_trades(corr_trades, telegram_sent=sent)
     update_correlation_outcomes()
     write_corr_report()
-    plain += "\n".join(format_performance_plain())
+
+    try:
+        from paper_portfolio import add_approved_trades, mark_to_market
+
+        add_approved_trades(approved)
+        mark_to_market()
+    except Exception as e:
+        logger.warning("Paper portfolio update failed: %s", e)
 
     os.makedirs(os.path.dirname(DAILY_OUTPUT) or ".", exist_ok=True)
     with open(DAILY_OUTPUT, "w") as fh:
         fh.write(plain)
 
-    _log_scan_heartbeat(scan_time, len(corr_trades), sent)
-    log_predictions(scan_time, predictions, sent)
+    _log_scan_heartbeat(scan_time, len(approved), sent)
+    log_approved_trades(scan_time, approved, sent)
     update_outcomes(min_age_days=1)
     write_scoreboard()
     write_tracker_report()
@@ -294,7 +321,7 @@ def run_pipeline(send_telegram: bool = True) -> Tuple[bool, str]:
         getattr(scan_result, "universe_size", "?"),
         len(focus_list),
         len(corr_trades),
-        len(predictions),
+        len(approved),
         sent,
         n_corr,
     )
